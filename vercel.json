@@ -1,7 +1,0 @@
-{
-  "buildCommand": "cd react-crud-app && npm install && npm run build",
-  "outputDirectory": "react-crud-app/dist",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
