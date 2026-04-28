@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="kk">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Басты бет - Қолданылған заттарды сату</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+  <header>
+    <div class="container header-container">
+      <div class="logo">Nur<span>asyl</span>.</div>
+      <nav>
+        <ul class="nav-links">
+          <li><a href="index.html" class="active">Басты бет</a></li>
+          <li><a href="about.html">Біз туралы</a></li>
+          <li class="dropdown">
+            <a href="services.html">Қызметтер ▾</a>
+            <ul class="dropdown-menu">
+              <li><a href="services.html#delivery">Жеткізу</a></li>
+              <li><a href="services.html#safe-pay">Қауіпсіз төлем</a></li>
+              <li><a href="services.html#vip">VIP Жарнама</a></li>
+            </ul>
+          </li>
+          <li><a href="blog.html">Блог</a></li>
+          <li><a href="contact.html">Байланыс</a></li>
+        </ul>
+      </nav>
+      <div class="auth-box" id="auth-box">
+        <a href="login.html" class="btn btn-sm">Кіру</a>
+        <a href="register.html" class="btn btn-sm">Тіркелу</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Қолданылған заттарды тиімді сат</h1>
+        <p>Артық затты ақшаға айналдыр. Экологияға үлес қос және өзіңе қажетті бұйымдарды қолжетімді бағамен тап. Біздің
+          платформа арқылы зат сату мен алу өте қауіпсіз әрі тез.</p>
+        <a href="services.html" class="btn">Қызметтермен танысу</a>
+      </div>
+    </section>
+
+    <!-- Task 1 & 6: Promo & Highlight (Оқиғалар және Стильді өзгерту) -->
+    <section style="padding: 60px 0;">
+      <div class="container cards-grid">
+        <!-- Task 1: Action via button -->
+        <div class="card" style="text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <h3 style="color: var(--primary-color);">Арнайы ұсыныс <span style="font-size: 0.8rem; color: #999;">(1-тапсырма)</span></h3>
+          <p id="t1-text" style="margin: 15px 0;">Біздің тұрақты тұтынушыларымызға арналған жасырын жеңілдік сыйлығы бар.</p>
+          <button id="t1-btn" class="btn" style="margin-top: auto;">Сыйлықты ашу</button>
+        </div>
+        
+        <!-- Task 6: Edit style, classList -->
+        <div id="t6-box" class="card style-box" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <h3 style="color: var(--primary-color);">VIP Жарнама <span style="font-size: 0.8rem; color: #999;">(6-тапсырма)</span></h3>
+          <p style="margin: 15px 0;">Өз затыңызды іздеудің ең жоғарғы қатарына шығару үшін VIP статус алыңыз.</p>
+          <button id="t6-btn" class="btn" style="margin-top: auto;">VIP статусты қосу</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Task 4 & 5: FAQ & Stats (Көріну/жасыру және Уақыт өзгерісі) -->
+    <section style="background: var(--light-gray); padding: 50px 0;">
+      <div class="container contact-grid">
+        <!-- Task 4: Show/Hide -->
+        <div>
+          <h3 style="color: var(--primary-color); margin-bottom: 20px;">Жиі қойылатын сұрақтар <span style="font-size: 0.8rem; color: #999;">(4-тапсырма)</span></h3>
+          <div>
+            <button id="t4-toggle-btn" class="btn" style="background: var(--dark-gray); width: 100%; text-align: left; display: flex; justify-content: space-between;">Платформа арқылы затты қалай сатамын? <span>▾</span></button>
+            <div id="t4-box" class="toggle-box hidden" style="background: #fff; color: var(--dark-gray); border: 1px solid #ddd; margin-top: 0; border-top: none; border-radius: 0 0 5px 5px;">
+              <p>Сіз өз затыңызды тіркейсіз, суретін жүктеп, бағасын қоясыз. Біздің модератор тексергеннен кейін ол көпшілікке қолжетімді болады. Сатып алушылар сізбен тікелей чат арқылы байланысады.</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Task 5: Timer / Counters -->
+        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+          <h3 style="color: var(--primary-color);">Платформа статистикасы <span style="font-size: 0.8rem; color: #999;">(5-тапсырма)</span></h3>
+          <p style="font-size: 1.1rem; margin-top: 15px; color: #666;">Бүгін сайттағы белсенді қолданушылар саны:</p>
+          <div style="font-size: 3.5rem; font-weight: bold; color: var(--accent-color); margin-top: 10px;">
+            <span id="t5-counter">0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Task 3 & 2: Wishlist & Newsletter (DOM өзгерту және Форма) -->
+    <section style="padding: 50px 0;">
+      <div class="container contact-grid">
+        <!-- Task 3: Dynamic DOM manipulation -->
+        <div>
+          <h3 style="color: var(--primary-color);">Қажетті заттар тізімі <span style="font-size: 0.8rem; color: #999;">(3-тапсырма)</span></h3>
+          <p style="margin-bottom: 20px; color: #666;">Сатып алғыңыз келетін заттарды тізімге қосып, есте сақтаңыз.</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button id="t3-add-btn" class="btn">Зат қосу +</button>
+            <button id="t3-remove-btn" class="btn btn-danger">Соңғысын өшіру -</button>
+          </div>
+          <ul id="t3-list" class="dynamic-list" style="max-height: 200px; overflow-y: auto;">
+            <li>Мысал: Қысқаша күртеше</li>
+          </ul>
+        </div>
+        
+        <!-- Task 2: Form handling -->
+        <div style="background: var(--dark-gray); color: #fff; padding: 40px; border-radius: 10px; box-shadow: 0 10px 20px rgba(0,0,0,0.1);">
+          <h3 style="color: #fff; margin-bottom: 10px;">Жаңалықтарға жазылу <span style="font-size: 0.8rem; color: #ccc;">(2-тапсырма)</span></h3>
+          <p style="margin-bottom: 20px; color: #ccc;">Үздік тауарлар мен 50%-ға дейінгі жеңілдіктерді бірінші болып біліңіз.</p>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 15px;">
+            <input type="text" id="t2-input" placeholder="Атыңызды енгізіңіз" style="padding: 12px; border-radius: 5px; border: none; font-size: 1rem;">
+            <button id="t2-btn" class="btn" style="background: var(--accent-color); font-size: 1rem;">Жіберу</button>
+          </div>
+          <p id="t2-result" style="margin-top: 15px; min-height: 24px;"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-container">
+      <p>&copy; 2026 Қолданылған заттарды сату платформасы. Авторы: Kabdykadirov Nurasyl.</p>
+      <div class="social-links">
+        <a href="#">Instagram</a>
+        <a href="#">Telegram</a>
+        <a href="#">WhatsApp</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/script.js"></script>
+</body>
+
+</html>

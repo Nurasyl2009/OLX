@@ -1,0 +1,562 @@
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import { query, initDb } from './database.js';
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+initDb();
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+const authorizeRoles = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      logAction('Access Denied', req.user ? req.user.id : null, `User tried to access restricted route with role: ${req.user ? req.user.role : 'none'}`);
+      return res.status(403).json({ error: 'Access denied: Insufficient permissions' });
+    }
+    next();
+  };
+};
+
+const logAction = async (action, userId, details = '') => {
+  try {
+    await query('INSERT INTO Logs (action, user_id, details) VALUES ($1, $2, $3)', [action, userId, details]);
+    console.log(`[LOG] ${action} by User ${userId}: ${details}`);
+  } catch (err) {
+    console.error('Failed to write log:', err);
+  }
+};
+
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, phone, password } = req.body;
+    if (!name || !phone || !password) {
+      return res.status(400).json({ error: 'Name, phone, and password are required' });
+    }
+    const userExist = await query('SELECT * FROM users WHERE phone = $1', [phone]);
+    if (userExist.rows.length > 0) {
+      return res.status(400).json({ error: 'User with this phone already exists' });
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userRole = 'buyer';
+
+    const result = await query(
+      'INSERT INTO users (name, phone, password, role, balance) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, phone, role, balance',
+      [name, phone, hashedPassword, userRole, 100000]
+    );
+
+    const newUser = result.rows[0];
+    const token = jwt.sign({ id: newUser.id, name: newUser.name, phone: newUser.phone, role: newUser.role }, JWT_SECRET, { expiresIn: '24h' });
+
+    logAction('User Registered', newUser.id, `Role: ${newUser.role}`);
+    res.status(201).json({ token, user: newUser });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.get('/api/auth/profile', authenticateToken, async (req, res) => {
+  try {
+    const result = await query('SELECT id, name, phone, role FROM users WHERE id = $1', [req.user.id]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+app.put('/api/auth/profile', authenticateToken, async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+    const result = await query(
+      'UPDATE users SET name = $1, phone = $2 WHERE id = $3 RETURNING id, name, phone, role',
+      [name, phone, req.user.id]
+    );
+    logAction('Profile Updated', req.user.id, `Name: ${name}, Phone: ${phone}`);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    const result = await query('SELECT * FROM users WHERE phone = $1', [phone]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(400).json({ error: 'User not found' });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Invalid password' });
+    }
+
+    const token = jwt.sign({ id: user.id, name: user.name, phone: user.phone, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+
+    logAction('User Login', user.id);
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, role: user.role, balance: user.balance } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.get('/api/products', async (req, res) => {
+  try {
+    const result = await query('SELECT p.*, u.name as seller_name FROM products p JOIN users u ON p.seller_id = u.id WHERE p.status = \'available\' ORDER BY p.id DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
+
+app.get('/api/my-products', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM products WHERE seller_id = $1 ORDER BY id DESC', [req.user.id]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch your products' });
+  }
+});
+
+app.post('/api/products', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
+  try {
+    const { title, description, price, image_url } = req.body;
+    const result = await query(
+      'INSERT INTO products (title, description, price, image_url, seller_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [title, description || '', price, image_url || '', req.user.id]
+    );
+    logAction('Product Created', req.user.id, `Product: ${title}`);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create product' });
+  }
+});
+
+app.put('/api/products/:id', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
+  try {
+    const { title, description, price, image_url, status } = req.body;
+
+    const prodCheck = await query('SELECT seller_id FROM products WHERE id = $1', [req.params.id]);
+    if (prodCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+    
+    if (req.user.role !== 'admin' && prodCheck.rows[0].seller_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to edit this product' });
+    }
+
+    const result = await query(
+      'UPDATE products SET title = $1, description = $2, price = $3, image_url = $4, status = $5 WHERE id = $6 RETURNING *',
+      [title, description || '', price, image_url || '', status || 'available', req.params.id]
+    );
+    logAction('Product Updated', req.user.id, `Product ID: ${req.params.id}`);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update product' });
+  }
+});
+
+app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
+  try {
+    const prodCheck = await query('SELECT seller_id FROM products WHERE id = $1', [req.params.id]);
+    if (prodCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+
+    if (req.user.role !== 'admin' && prodCheck.rows[0].seller_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to delete this product' });
+    }
+
+    await query('DELETE FROM products WHERE id = $1', [req.params.id]);
+    logAction('Product Deleted', req.user.id, `Product ID: ${req.params.id}`);
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+app.post('/api/orders', authenticateToken, async (req, res) => {
+  try {
+    const { product_id } = req.body;
+    
+    const prodRes = await query('SELECT seller_id, title FROM products WHERE id = $1', [product_id]);
+    const product = prodRes.rows[0];
+
+    await query(
+      'INSERT INTO orders (product_id, buyer_id) VALUES ($1, $2)',
+      [product_id, req.user.id]
+    );
+
+    await query(
+      'INSERT INTO notifications (user_id, message, type) VALUES ($1, $2, $3)',
+      [product.seller_id, `Жаңа тапсырыс: ${product.title}`, 'order']
+    );
+
+    logAction('Product Order', req.user.id, `Product ID: ${product_id}`);
+    res.status(201).json({ message: 'Order placed successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to place order' });
+  }
+});
+
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50', [req.user.id]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.get('/api/notifications/unread-count', authenticateToken, async (req, res) => {
+  try {
+    const result = await query('SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE', [req.user.id]);
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch unread count' });
+  }
+});
+
+app.put('/api/notifications/read', authenticateToken, async (req, res) => {
+  try {
+    await query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', [req.user.id]);
+    res.json({ message: 'Notifications marked as read' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update notifications' });
+  }
+});
+
+app.patch('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+  try {
+    const notif = await query('SELECT * FROM notifications WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (notif.rows.length === 0) return res.status(404).json({ error: 'Notification not found' });
+    await query('UPDATE notifications SET is_read = TRUE WHERE id = $1', [req.params.id]);
+    res.json({ message: 'Marked as read' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark notification' });
+  }
+});
+
+app.post('/api/messages', authenticateToken, async (req, res) => {
+  try {
+    const { receiver_id, message_text } = req.body;
+    if (!message_text || message_text.trim().length === 0) {
+      return res.status(400).json({ error: 'Хабарлама бос болмауы керек' });
+    }
+    if (message_text.length > 2000) {
+      return res.status(400).json({ error: 'Хабарлама тым ұзын (макс 2000 таңба)' });
+    }
+    if (parseInt(receiver_id) === req.user.id) {
+      return res.status(400).json({ error: 'Өзіңізге хабарлама жібере алмайсыз' });
+    }
+    const userCheck = await query('SELECT id, name FROM users WHERE id = $1', [receiver_id]);
+    if (userCheck.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const result = await query(
+      'INSERT INTO messages (sender_id, receiver_id, message_text) VALUES ($1, $2, $3) RETURNING *',
+      [req.user.id, receiver_id, message_text.trim()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
+  try {
+    const otherId = parseInt(req.params.userId);
+    const result = await query(
+      `SELECT m.*, s.name as sender_name, r.name as receiver_name
+       FROM messages m
+       JOIN users s ON m.sender_id = s.id
+       JOIN users r ON m.receiver_id = r.id
+       WHERE (m.sender_id = $1 AND m.receiver_id = $2) OR (m.sender_id = $2 AND m.receiver_id = $1)
+       ORDER BY m.created_at ASC`,
+      [req.user.id, otherId]
+    );
+    await query(
+      'UPDATE messages SET is_read = TRUE WHERE sender_id = $1 AND receiver_id = $2 AND is_read = FALSE',
+      [otherId, req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+app.get('/api/messages-unread-count', authenticateToken, async (req, res) => {
+  try {
+    const result = await query('SELECT COUNT(*) FROM messages WHERE receiver_id = $1 AND is_read = FALSE', [req.user.id]);
+    res.json({ count: parseInt(result.rows[0].count) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch unread messages count' });
+  }
+});
+
+app.get('/api/conversations', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT ON (other_id) other_id, other_name, last_message, last_time, unread
+      FROM (
+        SELECT 
+          CASE WHEN m.sender_id = $1 THEN m.receiver_id ELSE m.sender_id END as other_id,
+          CASE WHEN m.sender_id = $1 THEN r.name ELSE s.name END as other_name,
+          m.message_text as last_message,
+          m.created_at as last_time,
+          CASE WHEN m.receiver_id = $1 AND m.is_read = FALSE THEN 1 ELSE 0 END as unread
+        FROM messages m
+        JOIN users s ON m.sender_id = s.id
+        JOIN users r ON m.receiver_id = r.id
+        WHERE m.sender_id = $1 OR m.receiver_id = $1
+        ORDER BY m.created_at DESC
+      ) sub
+      ORDER BY other_id, last_time DESC
+    `, [req.user.id]);
+
+    const unreadRes = await query(`
+      SELECT sender_id, COUNT(*) as cnt FROM messages 
+      WHERE receiver_id = $1 AND is_read = FALSE 
+      GROUP BY sender_id
+    `, [req.user.id]);
+    const unreadMap = {};
+    unreadRes.rows.forEach(r => { unreadMap[r.sender_id] = parseInt(r.cnt); });
+
+    const conversations = result.rows.map(r => ({
+      ...r,
+      unread_count: unreadMap[r.other_id] || 0
+    }));
+    conversations.sort((a, b) => new Date(b.last_time) - new Date(a.last_time));
+    res.json(conversations);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch conversations' });
+  }
+});
+
+app.get('/api/users-list', authenticateToken, async (req, res) => {
+  try {
+    const result = await query('SELECT id, name, role FROM users WHERE id != $1 ORDER BY name', [req.user.id]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/seller/stats', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
+  try {
+    const totalSales = await query('SELECT COUNT(*) FROM orders o JOIN products p ON o.product_id = p.id WHERE p.seller_id = $1', [req.user.id]);
+    const revenue = await query('SELECT SUM(p.price) FROM orders o JOIN products p ON o.product_id = p.id WHERE p.seller_id = $1', [req.user.id]);
+    const productsCount = await query('SELECT COUNT(*) FROM products WHERE seller_id = $1', [req.user.id]);
+    
+    res.json({
+      sales: parseInt(totalSales.rows[0].count),
+      revenue: parseFloat(revenue.rows[0].sum || 0),
+      products: parseInt(productsCount.rows[0].count)
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch seller stats' });
+  }
+});
+
+app.get('/api/orders', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT o.id as order_id, o.ordered_at, p.*, u.name as seller_name 
+       FROM orders o 
+       JOIN products p ON o.product_id = p.id 
+       JOIN users u ON p.seller_id = u.id
+       WHERE o.buyer_id = $1`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch orders' });
+  }
+});
+
+app.get('/api/admin/users', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await query('SELECT id, name, phone, role, balance FROM users ORDER BY id ASC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.get('/api/admin/logs', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await query('SELECT l.*, u.name as user_name FROM logs l LEFT JOIN users u ON l.user_id = u.id ORDER BY l.id DESC LIMIT 100');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch logs' });
+  }
+});
+
+app.get('/api/admin/orders', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT o.id as order_id, o.ordered_at, p.title, p.price, u.name as buyer_name, s.name as seller_name
+      FROM orders o
+      JOIN products p ON o.product_id = p.id
+      JOIN users u ON o.buyer_id = u.id
+      JOIN users s ON p.seller_id = s.id
+      ORDER BY o.id DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch all orders' });
+  }
+});
+
+app.put('/api/admin/users/:id/role', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const { role } = req.body;
+    const result = await query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, name, role', [role, req.params.id]);
+    logAction('Admin: Role Changed', req.user.id, `User ID: ${req.params.id} to ${role}`);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    if (parseInt(req.params.id) === req.user.id) {
+        return res.status(400).json({ error: 'Cannot delete yourself' });
+    }
+    await query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    logAction('Admin: User Deleted', req.user.id, `User ID: ${req.params.id}`);
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+app.post('/api/seller-request', authenticateToken, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (req.user.role !== 'buyer') {
+      return res.status(400).json({ error: 'Тек сатып алушылар ғана өтінім бере алады' });
+    }
+    const existing = await query(
+      'SELECT * FROM seller_requests WHERE user_id = $1 AND status = $2',
+      [req.user.id, 'pending']
+    );
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Сіздің өтінімді әлі қаралуда' });
+    }
+    await query(
+      'INSERT INTO seller_requests (user_id, reason) VALUES ($1, $2)',
+      [req.user.id, reason || '']
+    );
+    await query(
+      'INSERT INTO notifications (user_id, message, type) VALUES ((SELECT id FROM users WHERE role = $1 LIMIT 1), $2, $3)',
+      ['admin', `Жаңа сатушы өтінімі: ${req.user.name}`, 'seller_request']
+    );
+    logAction('Seller Request', req.user.id, `Reason: ${reason}`);
+    res.status(201).json({ message: 'Өтінім сәтті жіберілді' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to submit request' });
+  }
+});
+
+app.get('/api/seller-request/status', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT * FROM seller_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [req.user.id]
+    );
+    res.json(result.rows[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch request status' });
+  }
+});
+
+app.get('/api/admin/seller-requests', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT sr.*, u.name as user_name, u.phone as user_phone
+      FROM seller_requests sr
+      JOIN users u ON sr.user_id = u.id
+      ORDER BY sr.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch seller requests' });
+  }
+});
+
+app.put('/api/admin/seller-requests/:id/approve', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const reqData = await query('SELECT * FROM seller_requests WHERE id = $1', [req.params.id]);
+    if (reqData.rows.length === 0) return res.status(404).json({ error: 'Request not found' });
+    
+    const userId = reqData.rows[0].user_id;
+    await query('UPDATE seller_requests SET status = $1 WHERE id = $2', ['approved', req.params.id]);
+    await query('UPDATE users SET role = $1 WHERE id = $2', ['seller', userId]);
+    await query(
+      'INSERT INTO notifications (user_id, message, type) VALUES ($1, $2, $3)',
+      [userId, 'Құттықтаймыз! Сатушы өтінімі бекітілді. Енді тауар қоса аласыз.', 'approved']
+    );
+    logAction('Admin: Seller Approved', req.user.id, `User ID: ${userId}`);
+    res.json({ message: 'Approved' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to approve' });
+  }
+});
+
+app.put('/api/admin/seller-requests/:id/reject', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const reqData = await query('SELECT * FROM seller_requests WHERE id = $1', [req.params.id]);
+    if (reqData.rows.length === 0) return res.status(404).json({ error: 'Request not found' });
+    
+    const userId = reqData.rows[0].user_id;
+    await query('UPDATE seller_requests SET status = $1 WHERE id = $2', ['rejected', req.params.id]);
+    await query(
+      'INSERT INTO notifications (user_id, message, type) VALUES ($1, $2, $3)',
+      [userId, 'Сатушы өтінімі қабылданбады. Себебі туралы байланысқа шығыңыз.', 'rejected']
+    );
+    logAction('Admin: Seller Rejected', req.user.id, `User ID: ${userId}`);
+    res.json({ message: 'Rejected' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to reject' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
