@@ -22,7 +22,7 @@ const Profile = () => {
           const ordersData = await getOrders();
           setOrders(ordersData);
         } else if (activeTab === 'products' && (user.role === 'seller' || user.role === 'admin')) {
-          const productsResponse = await axios.get('http://localhost:5000/api/my-products', {
+          const productsResponse = await axios.get(import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/my-products` : (import.meta.env.PROD ? '/api/my-products' : 'http://localhost:5000/api/my-products'), {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
           setMyProducts(productsResponse.data);
@@ -214,7 +214,7 @@ const SettingsForm = ({ user, onUpdate }) => {
         setSaving(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.put('http://localhost:5000/api/auth/profile', { name, phone }, {
+            await axios.put(import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/auth/profile` : (import.meta.env.PROD ? '/api/auth/profile' : 'http://localhost:5000/api/auth/profile'), { name, phone }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             await onUpdate();
