@@ -148,7 +148,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.get('/api/auth/profile', authenticateToken, async (req, res) => {
   try {
-    const result = await query('SELECT id, name, phone, role FROM users WHERE id = $1', [req.user.id]);
+    const result = await query('SELECT id, name, phone, email, role FROM users WHERE id = $1', [req.user.id]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch profile' });
@@ -157,12 +157,21 @@ app.get('/api/auth/profile', authenticateToken, async (req, res) => {
 
 app.put('/api/auth/profile', authenticateToken, async (req, res) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, email } = req.body;
+    
+    // Check if email is already taken by another user
+    if (email) {
+      const emailCheck = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({ error: 'Бұл email басқа аккаунтқа тіркелген.' });
+      }
+    }
+
     const result = await query(
-      'UPDATE users SET name = $1, phone = $2 WHERE id = $3 RETURNING id, name, phone, role',
-      [name, phone, req.user.id]
+      'UPDATE users SET name = $1, phone = $2, email = $3 WHERE id = $4 RETURNING id, name, phone, email, role',
+      [name, phone, email || null, req.user.id]
     );
-    logAction('Profile Updated', req.user.id, `Name: ${name}, Phone: ${phone}`);
+    logAction('Profile Updated', req.user.id, `Name: ${name}, Phone: ${phone}, Email: ${email}`);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update profile' });
@@ -188,7 +197,7 @@ app.post('/api/auth/login', async (req, res) => {
     const token = jwt.sign({ id: user.id, name: user.name, phone: user.phone, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
 
     logAction('User Login', user.id);
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, role: user.role, balance: user.balance } });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, role: user.role, balance: user.balance } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed' });

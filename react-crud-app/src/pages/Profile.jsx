@@ -205,8 +205,9 @@ const Profile = () => {
 };
 
 const SettingsForm = ({ user, onUpdate }) => {
-    const [name, setName] = useState(user.name);
-    const [phone, setPhone] = useState(user.phone);
+    const [name, setName] = useState(user.name || '');
+    const [phone, setPhone] = useState(user.phone || '');
+    const [email, setEmail] = useState(user.email || '');
     const [saving, setSaving] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -214,7 +215,7 @@ const SettingsForm = ({ user, onUpdate }) => {
         setSaving(true);
         try {
             const token = localStorage.getItem('token');
-            await axios.put(import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/auth/profile` : (import.meta.env.PROD ? '/api/auth/profile' : 'http://localhost:5000/api/auth/profile'), { name, phone }, {
+            await axios.put(import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/auth/profile` : (import.meta.env.PROD ? '/api/auth/profile' : 'http://localhost:5000/api/auth/profile'), { name, phone, email }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             await onUpdate();
@@ -240,7 +241,7 @@ const SettingsForm = ({ user, onUpdate }) => {
                         required
                     />
                 </div>
-                <div style={{ marginBottom: '2rem' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Телефон нөмірі</label>
                     <input 
                         type="text" 
@@ -248,6 +249,16 @@ const SettingsForm = ({ user, onUpdate }) => {
                         onChange={(e) => setPhone(e.target.value)}
                         style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white' }}
                         required
+                    />
+                </div>
+                <div style={{ marginBottom: '2rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Электрондық пошта (Email)</label>
+                    <input 
+                        type="email" 
+                        value={email} 
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Сіздің поштаңыз..."
+                        style={{ width: '100%', padding: '0.75rem 1rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white' }}
                     />
                 </div>
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '1rem' }} disabled={saving}>
