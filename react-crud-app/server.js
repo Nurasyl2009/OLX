@@ -200,7 +200,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-    await transporter.sendMail({
+    // Send email in background to prevent hanging
+    transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
       subject: 'Құпия сөзді қалпына келтіру',
@@ -210,7 +211,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         <a href="${resetLink}" style="background: blue; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Құпия сөзді өзгерту</a>
         <p>Сілтеме тек <b>15 минутқа</b> ғана жарамды.</p>
       `
-    });
+    }).catch(err => console.error('Background email error:', err));
 
     res.json({ message: 'Сілтеме email-ге жіберілді. Поштаңызды тексеріңіз.' });
   } catch (err) {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { forgotPassword } from '../services/api';
 
 const AuthModal = ({ isOpen, onClose }) => {
   const { login, register } = useAuth();
@@ -25,7 +26,6 @@ const AuthModal = ({ isOpen, onClose }) => {
     
     try {
       if (isReset) {
-        const { forgotPassword } = await import('../services/api');
         const res = await forgotPassword({ email: formData.email });
         setSuccessMsg(res.message || 'Сілтеме поштаңызға жіберілді. Хатты тексеріңіз!');
         setTimeout(() => {
