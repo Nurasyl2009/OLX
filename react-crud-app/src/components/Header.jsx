@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { ShoppingBag, Plus, ShoppingCart, Home, Info, Phone, User, LogOut, Shield, Bell, MessageSquare, Heart, Menu, X, TrendingUp, Sun, Moon } from 'lucide-react';
+import {
+  ShoppingBag, Plus, ShoppingCart, Home, Info, Phone,
+  User, LogOut, Shield, Bell, MessageSquare, Heart,
+  Menu, X, TrendingUp, Sun, Moon
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import AuthModal from './AuthModal';
 import { getNotificationUnreadCount, getMessagesUnreadCount } from '../services/api';
@@ -36,135 +40,189 @@ const Header = ({ onAddClick, cartCount, onCartClick, theme, onThemeToggle }) =>
 
   return (
     <>
-      <header className="glass-effect" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem 1.5rem', alignItems: 'stretch' }}>
-        
-        {/* Top Row: Logo & Actions */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link to="/" className="logo" style={{ textDecoration: 'none', color: 'inherit', fontSize: '1.6rem' }}>
-            <ShoppingBag size={28} strokeWidth={2.5} />
+      <header className="glass-effect main-header">
+        {/* ── Top Bar ── */}
+        <div className="header-top-bar">
+          {/* Logo */}
+          <Link to="/" className="logo">
+            <ShoppingBag size={26} strokeWidth={2.5} />
             <span>Satu.kz</span>
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button 
-              className="header-icon-link" 
-              onClick={onThemeToggle}
-              title={theme === 'dark' ? 'Күндізгі режим' : 'Түнгі режим'}
-              style={{ background: 'transparent', border: 'none' }}
-            >
-              {theme === 'dark' ? <Sun size={20} color="var(--text-main)" /> : <Moon size={20} color="var(--text-main)" />}
+          {/* Desktop: icon actions */}
+          <div className="header-desktop-actions">
+            <button className="header-icon-link theme-btn" onClick={onThemeToggle}
+              title={theme === 'dark' ? 'Күндізгі режим' : 'Түнгі режим'}>
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
 
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <>
+                <div className="header-icon-group">
                   <Link to="/favorites" className="header-icon-link" title="Таңдаулылар">
                     <Heart size={18} />
                   </Link>
-                  <Link to="/notifications" className="header-icon-link" title="Хабарламалар">
+                  <Link to="/notifications" className="header-icon-link" title="Хабарламалар" style={{ position: 'relative' }}>
                     <Bell size={18} />
                     {unreadNotifs > 0 && <span className="header-badge notif-badge-pulse">{unreadNotifs}</span>}
                   </Link>
-                  <Link to="/chat" className="header-icon-link" title="Чат">
+                  <Link to="/chat" className="header-icon-link" title="Чат" style={{ position: 'relative' }}>
                     <MessageSquare size={18} />
                     {unreadMsgs > 0 && <span className="header-badge msg-badge">{unreadMsgs}</span>}
                   </Link>
-                  <button className="header-icon-link" onClick={onCartClick} title="Себет" style={{ cursor: 'pointer' }}>
+                  <button className="header-icon-link" onClick={onCartClick} title="Себет" style={{ position: 'relative', cursor: 'pointer' }}>
                     <ShoppingCart size={18} />
                     {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
                   </button>
                 </div>
 
-                <div style={{ width: '1px', height: '24px', background: 'var(--border)' }}></div>
+                <div className="header-divider" />
 
-                <div style={{ 
-                  display: 'flex', alignItems: 'center', gap: '0.75rem', 
-                  padding: '0.3rem 0.3rem 0.3rem 1rem', 
-                  background: 'var(--glass)', borderRadius: '50px', 
-                  border: '1px solid var(--border)' 
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
-                      {user.name.split(' ')[0]}
-                    </span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                      {user.role}
-                    </span>
+                <div className="user-pill">
+                  <div className="user-pill-info">
+                    <span className="user-pill-name">{user.name.split(' ')[0]}</span>
+                    <span className="user-pill-role">{user.role}</span>
                   </div>
-                  <Link to="/profile" style={{ 
-                    width: '32px', height: '32px', borderRadius: '50%', 
-                    background: 'linear-gradient(135deg, var(--primary), var(--secondary))', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                    color: 'white', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.9rem',
-                    boxShadow: '0 2px 8px rgba(99,102,241,0.4)'
-                  }}>
+                  <Link to="/profile" className="user-avatar">
                     {user.name.charAt(0).toUpperCase()}
                   </Link>
-                  <button onClick={logout} title="Шығу" style={{ 
-                    background: 'transparent', border: 'none', color: '#ef4444', 
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0 0.4rem',
-                    transition: 'transform 0.2s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                  >
+                  <button onClick={logout} className="logout-icon-btn" title="Шығу">
                     <LogOut size={16} />
                   </button>
                 </div>
-              </div>
+              </>
             ) : (
-              <button className="btn btn-primary" onClick={() => setIsAuthModalOpen(true)} style={{ padding: '0.5rem 1rem' }}>
+              <button className="btn btn-primary" onClick={() => setIsAuthModalOpen(true)}
+                style={{ padding: '0.5rem 1.1rem', fontSize: '0.9rem' }}>
                 <User size={18} />
-                <span style={{ whiteSpace: 'nowrap', fontSize: '0.9rem' }}>Кіру / Тіркелу</span>
+                <span>Кіру / Тіркелу</span>
               </button>
             )}
-            
-            <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} style={{ display: 'none' }}>
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
           </div>
+
+          {/* Mobile: hamburger */}
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setIsMobileMenuOpen(v => !v)}
+            aria-label="Мәзірді ашу"
+          >
+            {isMobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
+          </button>
         </div>
 
-        {/* Bottom Row: Navigation & Add Product */}
-        <div className={`header-content ${isMobileMenuOpen ? 'mobile-open' : ''}`} style={{ 
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-          borderTop: '1px solid var(--border)', paddingTop: '1rem', flex: 'none'
-        }}>
-          <nav className="nav-menu" style={{ gap: '1rem', overflowX: 'auto', paddingBottom: '4px', flexWrap: 'wrap' }}>
-            <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}>
-              <Home size={16} />
-              <span style={{ whiteSpace: 'nowrap' }}>Басты бет</span>
+        {/* ── Bottom Nav (desktop) ── */}
+        <div className="header-bottom-bar">
+          <nav className="nav-menu">
+            <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <Home size={16} /><span>Басты бет</span>
             </NavLink>
             {user?.role === 'admin' && (
-              <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}>
-                <Shield size={16} />
-                <span style={{ whiteSpace: 'nowrap' }}>Админ панель</span>
+              <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                <Shield size={16} /><span>Админ панель</span>
               </NavLink>
             )}
             {(user?.role === 'admin' || user?.role === 'seller') && (
-              <NavLink to="/seller" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}>
-                <TrendingUp size={16} />
-                <span style={{ whiteSpace: 'nowrap' }}>Сатушы кабинеті</span>
+              <NavLink to="/seller" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                <TrendingUp size={16} /><span>Сатушы кабинеті</span>
               </NavLink>
             )}
-            <NavLink to="/about" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}>
-              <Info size={16} />
-              <span style={{ whiteSpace: 'nowrap' }}>Біз туралы</span>
+            <NavLink to="/about" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <Info size={16} /><span>Біз туралы</span>
             </NavLink>
-            <NavLink to="/contact" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}>
-              <Phone size={16} />
-              <span style={{ whiteSpace: 'nowrap' }}>Байланыс</span>
+            <NavLink to="/contact" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <Phone size={16} /><span>Байланыс</span>
             </NavLink>
           </nav>
 
           {user && (user.role === 'admin' || user.role === 'seller') && (
-            <button id="add-product-btn" className="btn btn-primary" onClick={onAddClick} style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', flexShrink: 0 }}>
+            <button id="add-product-btn" className="btn btn-primary add-product-btn" onClick={onAddClick}>
               <Plus size={16} />
-              <span className="hide-mobile" style={{ whiteSpace: 'nowrap', fontSize: '0.9rem', fontWeight: 'bold' }}>Тауар қосу</span>
+              <span>Тауар қосу</span>
             </button>
           )}
         </div>
       </header>
+
+      {/* ── Mobile Drawer ── */}
+      {isMobileMenuOpen && (
+        <div className="mobile-drawer">
+          {/* User info */}
+          {user ? (
+            <div className="mobile-user-section">
+              <div className="user-avatar" style={{ width: 44, height: 44, fontSize: '1.1rem' }}>
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '1rem' }}>{user.name}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</div>
+              </div>
+            </div>
+          ) : (
+            <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: '1rem' }}
+              onClick={() => { setIsAuthModalOpen(true); setIsMobileMenuOpen(false); }}>
+              <User size={18} />
+              <span>Кіру / Тіркелу</span>
+            </button>
+          )}
+
+          {/* Nav links */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <NavLink to="/" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <Home size={18} /><span>Басты бет</span>
+            </NavLink>
+            {user?.role === 'admin' && (
+              <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                <Shield size={18} /><span>Админ панель</span>
+              </NavLink>
+            )}
+            {(user?.role === 'admin' || user?.role === 'seller') && (
+              <NavLink to="/seller" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+                <TrendingUp size={18} /><span>Сатушы кабинеті</span>
+              </NavLink>
+            )}
+            <NavLink to="/about" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <Info size={18} /><span>Біз туралы</span>
+            </NavLink>
+            <NavLink to="/contact" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              <Phone size={18} /><span>Байланыс</span>
+            </NavLink>
+          </nav>
+
+          {/* Mobile icon row */}
+          {user && (
+            <div className="mobile-icon-row">
+              <button className="mobile-theme-btn" onClick={onThemeToggle}>
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                <span>{theme === 'dark' ? 'Күндізгі режим' : 'Түнгі режим'}</span>
+              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <Link to="/favorites" className="header-icon-link" title="Таңдаулылар"><Heart size={20} /></Link>
+                <Link to="/notifications" className="header-icon-link" style={{ position: 'relative' }}>
+                  <Bell size={20} />
+                  {unreadNotifs > 0 && <span className="header-badge notif-badge-pulse">{unreadNotifs}</span>}
+                </Link>
+                <Link to="/chat" className="header-icon-link" style={{ position: 'relative' }}>
+                  <MessageSquare size={20} />
+                  {unreadMsgs > 0 && <span className="header-badge msg-badge">{unreadMsgs}</span>}
+                </Link>
+                <button className="header-icon-link" onClick={onCartClick} style={{ position: 'relative', cursor: 'pointer' }}>
+                  <ShoppingCart size={20} />
+                  {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+                </button>
+                <Link to="/profile" className="header-icon-link"><User size={20} /></Link>
+              </div>
+              {(user.role === 'admin' || user.role === 'seller') && (
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={onAddClick}>
+                  <Plus size={16} /><span>Тауар қосу</span>
+                </button>
+              )}
+              <button onClick={logout} className="btn btn-danger" style={{ width: '100%', justifyContent: 'center' }}>
+                <LogOut size={16} /><span>Шығу</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </>

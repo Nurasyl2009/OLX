@@ -1463,64 +1463,202 @@ header {
   .header-actions { gap: 0.5rem; }
 }
 
-/* Mobile Responsiveness for Header */
-@media (max-width: 1024px) {
-  .header-content {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: #0f172a;
-    flex-direction: column;
-    padding: 1.5rem;
-    border-radius: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.05);
-    gap: 1.5rem;
-    z-index: 1000;
-  }
-  
-  .header-content.mobile-open {
-    display: flex;
-  }
+/* ── New Header Styles ── */
+.main-header {
+  display: flex;
+  flex-direction: column;
+  padding: 0.85rem 1.5rem;
+  margin-bottom: 2rem;
+  border-radius: 20px;
+  position: sticky;
+  top: 1rem;
+  z-index: 100;
+  gap: 0;
+}
 
-  .nav-menu {
-    flex-direction: column;
-    width: 100%;
-  }
+.header-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
 
-  .nav-link {
-    width: 100%;
-    padding: 1rem;
-    justify-content: center;
-  }
+.header-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
 
-  .header-actions {
-    flex-direction: column;
-    width: 100%;
-    align-items: center;
-    gap: 1.5rem;
-  }
+.header-desktop-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 
-  .user-greeting {
-    align-items: center;
-  }
+.header-icon-group {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
 
-  .mobile-menu-btn {
-    display: block;
-  }
+.header-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
 
-  .hide-mobile {
-    display: none;
-  }
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.9rem;
+  background: var(--glass);
+  border-radius: 50px;
+  border: 1px solid var(--border);
+}
+
+.user-pill-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.user-pill-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.user-pill-role {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+  flex-shrink: 0;
+}
+
+.logout-icon-btn {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0 0.3rem;
+  transition: transform 0.2s;
+}
+.logout-icon-btn:hover { transform: scale(1.15); }
+
+.theme-btn {
+  background: transparent !important;
+  border: none !important;
+}
+
+.add-product-btn {
+  padding: 0.55rem 1.1rem;
+  border-radius: 12px;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+/* ── Mobile hamburger button (hidden on desktop) ── */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* ── Mobile Drawer ── */
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.98);
+  backdrop-filter: blur(12px);
+  z-index: 999;
+  padding: 6rem 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+  animation: slideDown 0.25s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mobile-user-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--glass);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.mobile-icon-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.mobile-theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+/* ── Breakpoints ── */
+@media (max-width: 900px) {
+  .header-bottom-bar { display: none; }
+  .mobile-menu-btn   { display: flex; }
+  .header-desktop-actions { display: none; }
+  .main-header { padding: 0.85rem 1rem; }
 }
 
 @media (max-width: 480px) {
-  .btn-group, .icon-group {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+  .app-container { padding: 1rem; }
+  .product-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+  .btn-group, .icon-group { flex-wrap: wrap; justify-content: center; }
+  .cart-sidebar { width: 100%; }
 }
 
 
