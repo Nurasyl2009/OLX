@@ -9,7 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import multer from 'multer';
-import { Resend } from 'resend';
+import axios from 'axios';
 import { query, initDb } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,8 +32,24 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 initDb();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-const EMAIL_FROM = 'OLX Marketplace <onboarding@resend.dev>';
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const EMAIL_FROM_NAME = 'OLX Marketplace';
+const EMAIL_FROM_ADDRESS = 'kabdykadirov03@gmail.com';
+
+const sendEmail = async (to, subject, html) => {
+  const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
+    sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html
+  }, {
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json'
+    }
+  });
+  return response.data;
+};
 
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -89,18 +105,14 @@ const logAction = async (action, userId, details = '') => {
 
 app.get('/api/test-email', async (req, res) => {
   try {
-    const { data, error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to: process.env.EMAIL_USER,
-      subject: 'Render Test Email (Resend)',
-      html: '<p>If you see this, email sending works on Render via Resend.</p>'
-    });
-    if (error) {
-      return res.json({ success: false, error });
-    }
-    res.json({ success: true, data, user: process.env.EMAIL_USER });
+    const data = await sendEmail(
+      'kabdykadirov03@gmail.com',
+      'Render Test Email (Brevo)',
+      '<p>If you see this, email sending works on Render via Brevo!</p>'
+    );
+    res.json({ success: true, data });
   } catch (error) {
-    res.json({ success: false, error: error.message, stack: error.stack, user: process.env.EMAIL_USER });
+    res.json({ success: false, error: error.message, response: error.response?.data });
   }
 });
 
@@ -213,19 +225,16 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     // Send email in background to prevent hanging
-    resend.emails.send({
-      from: EMAIL_FROM,
-      to: email,
-      subject: 'Құпия сөзді қалпына келтіру',
-      html: `
+    sendEmail(
+      email,
+      'Құпия сөзді қалпына келтіру',
+      `
         <h3>Құпия сөзіңізді ұмыттыңыз ба?</h3>
         <p>Жаңа құпия сөз орнату үшін төмендегі сілтемені басыңыз:</p>
-        <a href="${resetLink}" style="background: blue; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Құпия сөзді өзгерту</a>
+        <a href="${resetLink}" style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Құпия сөзді өзгерту</a>
         <p>Сілтеме тек <b>15 минутқа</b> ғана жарамды.</p>
       `
-    }).then(({ data, error }) => {
-        if (error) console.error('Resend error:', error);
-    }).catch(err => console.error('Background email error:', err));
+    ).catch(err => console.error('Email error:', err.response?.data || err.message));
 
     res.json({ message: 'Сілтеме email-ге жіберілді. Поштаңызды тексеріңіз.' });
   } catch (err) {
