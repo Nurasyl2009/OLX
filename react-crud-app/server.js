@@ -92,6 +92,20 @@ const logAction = async (action, userId, details = '') => {
 };
 
 
+app.get('/api/test-email', async (req, res) => {
+  try {
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: 'Render Test Email',
+      text: 'If you see this, email sending works on Render.'
+    });
+    res.json({ success: true, info, user: process.env.EMAIL_USER });
+  } catch (error) {
+    res.json({ success: false, error: error.message, stack: error.stack, user: process.env.EMAIL_USER });
+  }
+});
+
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, phone, email, password } = req.body;
