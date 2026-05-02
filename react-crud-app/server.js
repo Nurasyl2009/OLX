@@ -100,70 +100,22 @@ app.post('/api/auth/register', async (req, res) => {
     }
     const userExist = await query('SELECT * FROM users WHERE phone = $1 OR email = $2', [phone, email || null]);
     if (userExist.rows.length > 0) {
-      const existingUser = userExist.rows[0];
-      // If the user exists but hasn't verified their email yet
-      if (existingUser.email && !existingUser.is_verified) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const verificationToken = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '24h' });
-        
-        await query(
-          'UPDATE users SET name = $1, phone = $2, email = $3, password = $4, verification_token = $5 WHERE id = $6',
-          [name, phone, email || null, hashedPassword, verificationToken, existingUser.id]
-        );
-        
-        const frontendUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
-        const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
-        
-        await transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: email,
-          subject: 'Электрондық поштаны растау (Қайта жіберілді)',
-          html: `
-            <h3>Қош келдіңіз, ${name}!</h3>
-            <p>Тіркелуді аяқтау үшін төмендегі сілтемені басып, поштаңызды растаңыз:</p>
-            <a href="${verifyLink}" style="background: green; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Поштаны растау</a>
-          `
-        });
-        
-        const token = jwt.sign({ id: existingUser.id, name, phone, role: existingUser.role }, JWT_SECRET, { expiresIn: '24h' });
-        logAction('User Re-Registered (Unverified)', existingUser.id);
-        return res.status(201).json({ token, user: { ...existingUser, name, phone, email }, message: 'Растау хаты поштаңызға қайта жіберілді.' });
-      }
-
       return res.status(400).json({ error: 'Бұл телефон нөмірі немесе email қазірдің өзінде тіркелген.' });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const userRole = 'buyer';
-    const verificationToken = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '24h' });
 
     const result = await query(
-      'INSERT INTO users (name, phone, email, password, role, balance, is_verified, verification_token) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, phone, email, role, balance',
-      [name, phone, email || null, hashedPassword, userRole, 100000, false, verificationToken]
+      'INSERT INTO users (name, phone, email, password, role, balance, is_verified) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, phone, email, role, balance',
+      [name, phone, email || null, hashedPassword, userRole, 100000, true]
     );
 
     const newUser = result.rows[0];
 
-    // Send verification email if email provided
-    if (email) {
-      const frontendUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
-      const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
-      
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Электрондық поштаны растау',
-        html: `
-          <h3>Қош келдіңіз, ${name}!</h3>
-          <p>Тіркелуді аяқтау үшін төмендегі сілтемені басып, поштаңызды растаңыз:</p>
-          <a href="${verifyLink}" style="background: green; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Поштаны растау</a>
-        `
-      });
-    }
-
     const token = jwt.sign({ id: newUser.id, name: newUser.name, phone: newUser.phone, role: newUser.role }, JWT_SECRET, { expiresIn: '24h' });
 
     logAction('User Registered', newUser.id, `Role: ${newUser.role}`);
-    res.status(201).json({ token, user: newUser, message: email ? 'Тіркелу сәтті! Поштаңызды растау үшін хат жіберілді.' : 'Тіркелу сәтті!' });
+    res.status(201).json({ token, user: newUser, message: 'Тіркелу сәтті!' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Registration failed' });
@@ -207,10 +159,6 @@ app.post('/api/auth/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(400).json({ error: 'Invalid password' });
-    }
-
-    if (user.email && !user.is_verified) {
-      return res.status(403).json({ error: 'Поштаңыз расталмаған. Хатты тексеріңіз.' });
     }
 
     const token = jwt.sign({ id: user.id, name: user.name, phone: user.phone, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
