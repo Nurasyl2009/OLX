@@ -100,7 +100,37 @@ app.post('/api/auth/register', async (req, res) => {
     }
     const userExist = await query('SELECT * FROM users WHERE phone = $1 OR email = $2', [phone, email || null]);
     if (userExist.rows.length > 0) {
-      return res.status(400).json({ error: 'User with this phone or email already exists' });
+      const existingUser = userExist.rows[0];
+      // If the user exists but hasn't verified their email yet
+      if (existingUser.email && !existingUser.is_verified) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationToken = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '24h' });
+        
+        await query(
+          'UPDATE users SET name = $1, phone = $2, email = $3, password = $4, verification_token = $5 WHERE id = $6',
+          [name, phone, email || null, hashedPassword, verificationToken, existingUser.id]
+        );
+        
+        const frontendUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
+        const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
+        
+        await transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: 'Электрондық поштаны растау (Қайта жіберілді)',
+          html: `
+            <h3>Қош келдіңіз, ${name}!</h3>
+            <p>Тіркелуді аяқтау үшін төмендегі сілтемені басып, поштаңызды растаңыз:</p>
+            <a href="${verifyLink}" style="background: green; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Поштаны растау</a>
+          `
+        });
+        
+        const token = jwt.sign({ id: existingUser.id, name, phone, role: existingUser.role }, JWT_SECRET, { expiresIn: '24h' });
+        logAction('User Re-Registered (Unverified)', existingUser.id);
+        return res.status(201).json({ token, user: { ...existingUser, name, phone, email }, message: 'Растау хаты поштаңызға қайта жіберілді.' });
+      }
+
+      return res.status(400).json({ error: 'Бұл телефон нөмірі немесе email қазірдің өзінде тіркелген.' });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const userRole = 'buyer';
