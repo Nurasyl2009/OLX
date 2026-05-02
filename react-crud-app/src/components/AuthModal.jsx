@@ -48,10 +48,10 @@ const AuthModal = ({ isOpen, onClose }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="product-form">
-          {error && <div style={{ color: 'red', marginBottom: '1rem' }}>{error}</div>}
+          {error ? <div key="error-msg" style={{ color: '#ef4444', marginBottom: '1rem', background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '8px' }}><span>{error}</span></div> : null}
           
           {!isLogin && !isReset && (
-            <div className="form-group">
+            <div key="name-group" className="form-group">
               <label>Аты-жөні</label>
               <input
                 type="text"
@@ -60,12 +60,13 @@ const AuthModal = ({ isOpen, onClose }) => {
                 value={formData.name}
                 onChange={handleChange}
                 required={!isLogin && !isReset}
+                maxLength={50}
               />
             </div>
           )}
 
           {(!isLogin || isReset) && (
-            <div className="form-group">
+            <div key="email-group" className="form-group">
               <label>Электрондық пошта (Email)</label>
               <input
                 type="email"
@@ -74,12 +75,13 @@ const AuthModal = ({ isOpen, onClose }) => {
                 value={formData.email}
                 onChange={handleChange}
                 required={!isLogin || isReset}
+                maxLength={60}
               />
             </div>
           )}
 
           {!isReset && (
-            <div className="form-group">
+            <div key="phone-group" className="form-group">
               <label>Телефон нөмірі</label>
               <input
                 type="text"
@@ -88,12 +90,15 @@ const AuthModal = ({ isOpen, onClose }) => {
                 value={formData.phone}
                 onChange={handleChange}
                 required
+                minLength={10}
+                maxLength={15}
+                placeholder="+77771234567"
               />
             </div>
           )}
 
           {!isReset && (
-            <div className="form-group">
+            <div key="password-group" className="form-group">
               <label>Құпиясөз (Password)</label>
               <input
                 type="password"
@@ -102,6 +107,8 @@ const AuthModal = ({ isOpen, onClose }) => {
                 value={formData.password}
                 onChange={handleChange}
                 required
+                minLength={4}
+                maxLength={50}
               />
             </div>
           )}
@@ -114,7 +121,7 @@ const AuthModal = ({ isOpen, onClose }) => {
 
           <p style={{ marginTop: '1rem', textAlign: 'center' }}>
             {isReset ? (
-              <button type="button" onClick={() => {setIsReset(false); setIsLogin(true);}} style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', fontWeight: 'bold' }}>
+              <button type="button" onClick={() => {setIsReset(false); setIsLogin(true);}} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 'bold' }}>
                 Кері қайту
               </button>
             ) : (
@@ -124,8 +131,8 @@ const AuthModal = ({ isOpen, onClose }) => {
                     Құпия сөзді ұмыттыңыз ба?
                   </button>
                 )}
-                {isLogin ? 'Аккаунтыңыз жоқ па?' : 'Аккаунтыңыз бар ма?'} 
-                <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', marginLeft: '0.5rem', fontWeight: 'bold' }}>
+                <span>{isLogin ? 'Аккаунтыңыз жоқ па?' : 'Аккаунтыңыз бар ма?'} </span>
+                <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 'bold' }}>
                   {isLogin ? 'Тіркелу' : 'Кіру'}
                 </button>
               </>
