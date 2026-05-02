@@ -9,7 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import multer from 'multer';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { query, initDb } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,21 +32,8 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 initDb();
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // use SSL
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  tls: {
-    rejectUnauthorized: false
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM = 'OLX Marketplace <onboarding@resend.dev>';
 
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -102,13 +89,16 @@ const logAction = async (action, userId, details = '') => {
 
 app.get('/api/test-email', async (req, res) => {
   try {
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_FROM,
       to: process.env.EMAIL_USER,
-      subject: 'Render Test Email',
-      text: 'If you see this, email sending works on Render.'
+      subject: 'Render Test Email (Resend)',
+      html: '<p>If you see this, email sending works on Render via Resend.</p>'
     });
-    res.json({ success: true, info, user: process.env.EMAIL_USER });
+    if (error) {
+      return res.json({ success: false, error });
+    }
+    res.json({ success: true, data, user: process.env.EMAIL_USER });
   } catch (error) {
     res.json({ success: false, error: error.message, stack: error.stack, user: process.env.EMAIL_USER });
   }
@@ -223,8 +213,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     // Send email in background to prevent hanging
-    transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    resend.emails.send({
+      from: EMAIL_FROM,
       to: email,
       subject: 'Құпия сөзді қалпына келтіру',
       html: `
@@ -233,6 +223,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         <a href="${resetLink}" style="background: blue; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Құпия сөзді өзгерту</a>
         <p>Сілтеме тек <b>15 минутқа</b> ғана жарамды.</p>
       `
+    }).then(({ data, error }) => {
+        if (error) console.error('Resend error:', error);
     }).catch(err => console.error('Background email error:', err));
 
     res.json({ message: 'Сілтеме email-ге жіберілді. Поштаңызды тексеріңіз.' });
