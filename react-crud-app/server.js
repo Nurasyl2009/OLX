@@ -1,10 +1,15 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+import multer from 'multer';
+import nodemailer from 'nodemailer';
 import { query, initDb } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -13,12 +18,48 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 initDb();
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir)
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, uniqueSuffix + path.extname(file.originalname))
+  }
+});
+const upload = multer({ storage: storage });
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -53,27 +94,46 @@ const logAction = async (action, userId, details = '') => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, phone, password } = req.body;
+    const { name, phone, email, password } = req.body;
     if (!name || !phone || !password) {
       return res.status(400).json({ error: 'Name, phone, and password are required' });
     }
-    const userExist = await query('SELECT * FROM users WHERE phone = $1', [phone]);
+    const userExist = await query('SELECT * FROM users WHERE phone = $1 OR email = $2', [phone, email || null]);
     if (userExist.rows.length > 0) {
-      return res.status(400).json({ error: 'User with this phone already exists' });
+      return res.status(400).json({ error: 'User with this phone or email already exists' });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     const userRole = 'buyer';
+    const verificationToken = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '24h' });
 
     const result = await query(
-      'INSERT INTO users (name, phone, password, role, balance) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, phone, role, balance',
-      [name, phone, hashedPassword, userRole, 100000]
+      'INSERT INTO users (name, phone, email, password, role, balance, is_verified, verification_token) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name, phone, email, role, balance',
+      [name, phone, email || null, hashedPassword, userRole, 100000, false, verificationToken]
     );
 
     const newUser = result.rows[0];
+
+    // Send verification email if email provided
+    if (email) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
+      
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Электрондық поштаны растау',
+        html: `
+          <h3>Қош келдіңіз, ${name}!</h3>
+          <p>Тіркелуді аяқтау үшін төмендегі сілтемені басып, поштаңызды растаңыз:</p>
+          <a href="${verifyLink}" style="background: green; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Поштаны растау</a>
+        `
+      });
+    }
+
     const token = jwt.sign({ id: newUser.id, name: newUser.name, phone: newUser.phone, role: newUser.role }, JWT_SECRET, { expiresIn: '24h' });
 
     logAction('User Registered', newUser.id, `Role: ${newUser.role}`);
-    res.status(201).json({ token, user: newUser });
+    res.status(201).json({ token, user: newUser, message: email ? 'Тіркелу сәтті! Поштаңызды растау үшін хат жіберілді.' : 'Тіркелу сәтті!' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Registration failed' });
@@ -119,6 +179,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid password' });
     }
 
+    if (user.email && !user.is_verified) {
+      return res.status(403).json({ error: 'Поштаңыз расталмаған. Хатты тексеріңіз.' });
+    }
+
     const token = jwt.sign({ id: user.id, name: user.name, phone: user.phone, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
 
     logAction('User Login', user.id);
@@ -129,9 +193,134 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+    if (!phone || !password) return res.status(400).json({ error: 'Мәліметтер толық емес' });
+    const userExist = await query('SELECT * FROM users WHERE phone = $1', [phone]);
+    if (userExist.rows.length === 0) return res.status(404).json({ error: 'Пайдаланушы табылмады' });
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await query('UPDATE users SET password = $1 WHERE phone = $2', [hashedPassword, phone]);
+    logAction('Password Reset', userExist.rows[0].id, 'Password changed via reset');
+    res.json({ message: 'Құпия сөз сәтті өзгертілді' });
+  } catch (err) {
+    res.status(500).json({ error: 'Қате кетті' });
+  }
+});
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const userResult = await query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = userResult.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ error: 'Бұл email тіркелмеген' });
+    }
+
+    const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '15m' });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Құпия сөзді қалпына келтіру',
+      html: `
+        <h3>Құпия сөзіңізді ұмыттыңыз ба?</h3>
+        <p>Жаңа құпия сөз орнату үшін төмендегі сілтемені басыңыз:</p>
+        <a href="${resetLink}" style="background: blue; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">Құпия сөзді өзгерту</a>
+        <p>Сілтеме тек <b>15 минутқа</b> ғана жарамды.</p>
+      `
+    });
+
+    res.json({ message: 'Сілтеме email-ге жіберілді. Поштаңызды тексеріңіз.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Қате кетті, хат жіберілмеді.' });
+  }
+});
+
+app.post('/api/auth/reset-password-confirm', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ error: 'Токен мен жаңа құпия сөз қажет' });
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, decoded.id]);
+
+    logAction('Password Reset via Email', decoded.id, 'Password changed via email link');
+    res.json({ message: 'Құпия сөзіңіз сәтті өзгертілді! Енді кіре аласыз.' });
+  } catch (err) {
+    res.status(400).json({ error: 'Сілтеме жарамсыз немесе мерзімі бітіп қалған.' });
+  }
+});
+
+app.post('/api/auth/verify-email', async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = await query('SELECT * FROM users WHERE verification_token = $1', [token]);
+    
+    if (user.rows.length === 0) {
+      return res.status(400).json({ error: 'Растау коды қате немесе ескірген' });
+    }
+
+    await query('UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE id = $1', [user.rows[0].id]);
+    res.json({ message: 'Электрондық пошта сәтті расталды!' });
+  } catch (err) {
+    res.status(500).json({ error: 'Растау кезінде қате кетті' });
+  }
+});
+
+// Reviews API
+app.get('/api/products/:id/reviews', async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT r.*, u.name as user_name FROM reviews r JOIN users u ON r.user_id = u.id WHERE r.product_id = $1 ORDER BY r.created_at DESC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch reviews' });
+  }
+});
+
+app.post('/api/products/:id/view', async (req, res) => {
+  try {
+    await query('UPDATE products SET views = views + 1 WHERE id = $1', [req.params.id]);
+    res.json({ message: 'View incremented' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to increment view' });
+  }
+});
+
+app.post('/api/products/:id/reviews', authenticateToken, async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const result = await query(
+      'INSERT INTO reviews (product_id, user_id, rating, comment) VALUES ($1, $2, $3, $4) RETURNING *',
+      [req.params.id, req.user.id, rating, comment]
+    );
+    logAction('Review Added', req.user.id, `Product ID: ${req.params.id}, Rating: ${rating}`);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add review' });
+  }
+});
+
 app.get('/api/products', async (req, res) => {
   try {
-    const result = await query('SELECT p.*, u.name as seller_name FROM products p JOIN users u ON p.seller_id = u.id WHERE p.status = \'available\' ORDER BY p.id DESC');
+    const result = await query(`
+      SELECT p.*, u.name as seller_name, 
+      (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) as avg_rating,
+      (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as reviews_count
+      FROM products p 
+      JOIN users u ON p.seller_id = u.id 
+      WHERE p.status = 'available' 
+      ORDER BY p.id DESC
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -144,16 +333,24 @@ app.get('/api/my-products', authenticateToken, authorizeRoles('admin', 'seller')
     const result = await query('SELECT * FROM products WHERE seller_id = $1 ORDER BY id DESC', [req.user.id]);
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Failed to fetch your products' });
   }
 });
 
+app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const baseUrl = req.protocol + '://' + req.get('host');
+  const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+  res.json({ url: imageUrl });
+});
+
 app.post('/api/products', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
   try {
-    const { title, description, price, image_url } = req.body;
+    const { title, description, price, image_url, category } = req.body;
     const result = await query(
-      'INSERT INTO products (title, description, price, image_url, seller_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [title, description || '', price, image_url || '', req.user.id]
+      'INSERT INTO products (title, description, price, image_url, category, seller_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [title, description || '', price, image_url || '', category || 'Басқа', req.user.id]
     );
     logAction('Product Created', req.user.id, `Product: ${title}`);
     res.status(201).json(result.rows[0]);
@@ -165,7 +362,7 @@ app.post('/api/products', authenticateToken, authorizeRoles('admin', 'seller'), 
 
 app.put('/api/products/:id', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
   try {
-    const { title, description, price, image_url, status } = req.body;
+    const { title, description, price, image_url, status, category } = req.body;
 
     const prodCheck = await query('SELECT seller_id FROM products WHERE id = $1', [req.params.id]);
     if (prodCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
@@ -175,8 +372,8 @@ app.put('/api/products/:id', authenticateToken, authorizeRoles('admin', 'seller'
     }
 
     const result = await query(
-      'UPDATE products SET title = $1, description = $2, price = $3, image_url = $4, status = $5 WHERE id = $6 RETURNING *',
-      [title, description || '', price, image_url || '', status || 'available', req.params.id]
+      'UPDATE products SET title = $1, description = $2, price = $3, image_url = $4, status = $5, category = $6 WHERE id = $7 RETURNING *',
+      [title, description || '', price, image_url || '', status || 'available', category || 'Басқа', req.params.id]
     );
     logAction('Product Updated', req.user.id, `Product ID: ${req.params.id}`);
     res.json(result.rows[0]);
@@ -204,6 +401,8 @@ app.delete('/api/products/:id', authenticateToken, authorizeRoles('admin', 'sell
   }
 });
 
+
+
 app.post('/api/orders', authenticateToken, async (req, res) => {
   try {
     const { product_id } = req.body;
@@ -226,6 +425,37 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to place order' });
+  }
+});
+
+app.get('/api/favorites', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT f.product_id, p.*, u.name as seller_name FROM favorites f JOIN products p ON f.product_id = p.id JOIN users u ON p.seller_id = u.id WHERE f.user_id = $1 ORDER BY f.created_at DESC',
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch favorites' });
+  }
+});
+
+app.post('/api/favorites', authenticateToken, async (req, res) => {
+  try {
+    const { product_id } = req.body;
+    await query('INSERT INTO favorites (user_id, product_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, product_id]);
+    res.status(201).json({ message: 'Added to favorites' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add favorite' });
+  }
+});
+
+app.delete('/api/favorites/:id', authenticateToken, async (req, res) => {
+  try {
+    await query('DELETE FROM favorites WHERE user_id = $1 AND product_id = $2', [req.user.id, req.params.id]);
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove favorite' });
   }
 });
 
@@ -286,7 +516,9 @@ app.post('/api/messages', authenticateToken, async (req, res) => {
       'INSERT INTO messages (sender_id, receiver_id, message_text) VALUES ($1, $2, $3) RETURNING *',
       [req.user.id, receiver_id, message_text.trim()]
     );
-    res.status(201).json(result.rows[0]);
+    const newMessage = result.rows[0];
+    io.to(`user_${receiver_id}`).emit('new_message', newMessage);
+    res.status(201).json(newMessage);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to send message' });
@@ -379,11 +611,20 @@ app.get('/api/seller/stats', authenticateToken, authorizeRoles('admin', 'seller'
     const totalSales = await query('SELECT COUNT(*) FROM orders o JOIN products p ON o.product_id = p.id WHERE p.seller_id = $1', [req.user.id]);
     const revenue = await query('SELECT SUM(p.price) FROM orders o JOIN products p ON o.product_id = p.id WHERE p.seller_id = $1', [req.user.id]);
     const productsCount = await query('SELECT COUNT(*) FROM products WHERE seller_id = $1', [req.user.id]);
+    const totalViews = await query('SELECT SUM(views) FROM products WHERE seller_id = $1', [req.user.id]);
+    const avgRating = await query(`
+      SELECT AVG(r.rating) 
+      FROM reviews r 
+      JOIN products p ON r.product_id = p.id 
+      WHERE p.seller_id = $1
+    `, [req.user.id]);
     
     res.json({
       sales: parseInt(totalSales.rows[0].count),
       revenue: parseFloat(revenue.rows[0].sum || 0),
-      products: parseInt(productsCount.rows[0].count)
+      products: parseInt(productsCount.rows[0].count),
+      views: parseInt(totalViews.rows[0].sum || 0),
+      rating: parseFloat(avgRating.rows[0].avg || 0).toFixed(1)
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch seller stats' });
@@ -562,11 +803,24 @@ app.put('/api/admin/seller-requests/:id/reject', authenticateToken, authorizeRol
   }
 });
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'dist')));
-app.get(/^(.*)$/, (req, res) => {
+app.get(/^(?!\/api).*$/, (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
+// Socket.io logic
+io.on('connection', (socket) => {
+  socket.on('join', (userId) => {
+    socket.join(`user_${userId}`);
+    console.log(`User joined room: user_${userId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected');
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

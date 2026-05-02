@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 const AuthModal = ({ isOpen, onClose }) => {
   const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true); // true = login, false = register
-  const [formData, setFormData] = useState({ name: '', phone: '', password: '' });
+  const [isReset, setIsReset] = useState(false);
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', password: '' });
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
@@ -18,12 +19,19 @@ const AuthModal = ({ isOpen, onClose }) => {
     e.preventDefault();
     setError('');
     try {
-      if (isLogin) {
+      if (isReset) {
+        const { forgotPassword } = await import('../services/api');
+        const res = await forgotPassword({ email: formData.email });
+        alert(res.message || 'Сілтеме email-ге жіберілді!');
+        setIsReset(false);
+        setIsLogin(true);
+      } else if (isLogin) {
         await login({ phone: formData.phone, password: formData.password });
+        onClose();
       } else {
         await register(formData);
+        onClose();
       }
-      onClose(); // close modal on success
     } catch (err) {
       setError(err.response?.data?.error || 'Қате кетті');
     }
@@ -33,7 +41,7 @@ const AuthModal = ({ isOpen, onClose }) => {
     <div className="modal-overlay">
       <div className="modal-content">
         <div className="modal-header">
-          <h2>{isLogin ? 'Кіру' : 'Тіркелу'}</h2>
+          <h2>{isReset ? 'Құпия сөзді қалпына келтіру' : isLogin ? 'Кіру' : 'Тіркелу'}</h2>
           <button className="btn btn-icon" onClick={onClose}>
             <X size={20} />
           </button>
@@ -42,7 +50,7 @@ const AuthModal = ({ isOpen, onClose }) => {
         <form onSubmit={handleSubmit} className="product-form">
           {error && <div style={{ color: 'red', marginBottom: '1rem' }}>{error}</div>}
           
-          {!isLogin && (
+          {!isLogin && !isReset && (
             <div className="form-group">
               <label>Аты-жөні</label>
               <input
@@ -51,46 +59,77 @@ const AuthModal = ({ isOpen, onClose }) => {
                 className="form-control"
                 value={formData.name}
                 onChange={handleChange}
-                required={!isLogin}
+                required={!isLogin && !isReset}
               />
             </div>
           )}
 
-          <div className="form-group">
-            <label>Телефон нөмірі</label>
-            <input
-              type="text"
-              name="phone"
-              className="form-control"
-              value={formData.phone}
-              onChange={handleChange}
-              required
-            />
-          </div>
+          {(!isLogin || isReset) && (
+            <div className="form-group">
+              <label>Электрондық пошта (Email)</label>
+              <input
+                type="email"
+                name="email"
+                className="form-control"
+                value={formData.email}
+                onChange={handleChange}
+                required={!isLogin || isReset}
+              />
+            </div>
+          )}
 
-          <div className="form-group">
-            <label>Құпиясөз (Password)</label>
-            <input
-              type="password"
-              name="password"
-              className="form-control"
-              value={formData.password}
-              onChange={handleChange}
-              required
-            />
-          </div>
+          {!isReset && (
+            <div className="form-group">
+              <label>Телефон нөмірі</label>
+              <input
+                type="text"
+                name="phone"
+                className="form-control"
+                value={formData.phone}
+                onChange={handleChange}
+                required
+              />
+            </div>
+          )}
+
+          {!isReset && (
+            <div className="form-group">
+              <label>Құпиясөз (Password)</label>
+              <input
+                type="password"
+                name="password"
+                className="form-control"
+                value={formData.password}
+                onChange={handleChange}
+                required
+              />
+            </div>
+          )}
 
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-              {isLogin ? 'Кіру' : 'Тіркелу'}
+              {isReset ? 'Қалпына келтіру' : isLogin ? 'Кіру' : 'Тіркелу'}
             </button>
           </div>
 
           <p style={{ marginTop: '1rem', textAlign: 'center' }}>
-            {isLogin ? 'Аккаунтыңыз жоқ па?' : 'Аккаунтыңыз бар ма?'} 
-            <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', marginLeft: '0.5rem', fontWeight: 'bold' }}>
-              {isLogin ? 'Тіркелу' : 'Кіру'}
-            </button>
+            {isReset ? (
+              <button type="button" onClick={() => {setIsReset(false); setIsLogin(true);}} style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', fontWeight: 'bold' }}>
+                Кері қайту
+              </button>
+            ) : (
+              <>
+                {isLogin && (
+                  <button type="button" onClick={() => setIsReset(true)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'block', width: '100%', marginBottom: '10px' }}>
+                    Құпия сөзді ұмыттыңыз ба?
+                  </button>
+                )}
+                {isLogin ? 'Аккаунтыңыз жоқ па?' : 'Аккаунтыңыз бар ма?'} 
+                <button type="button" onClick={() => setIsLogin(!isLogin)} style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', marginLeft: '0.5rem', fontWeight: 'bold' }}>
+                  {isLogin ? 'Тіркелу' : 'Кіру'}
+                </button>
+              </>
+            )}
           </p>
         </form>
       </div>

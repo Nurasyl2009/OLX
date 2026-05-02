@@ -4,6 +4,8 @@ dotenv.config();
 
 const { Pool } = pg;
 
+// TIMESTAMP (without timezone) бағандарын UTC ретінде оқу (Уақыт белдеуі қатесін жөндеу)
+pg.types.setTypeParser(1114, str => new Date(str + 'Z'));
 // Railway DATABASE_URL немесе жергілікті .env қолдайды
 const pool = process.env.DATABASE_URL
   ? new Pool({
@@ -41,6 +43,9 @@ export const initDb = async () => {
     `);
 
     await client.query('ALTER TABLE Users ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT \'buyer\'');
+    await client.query('ALTER TABLE Users ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE');
+    await client.query('ALTER TABLE Users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE');
+    await client.query('ALTER TABLE Users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255)');
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS Products (
@@ -58,6 +63,7 @@ export const initDb = async () => {
     `);
 
     await client.query('ALTER TABLE Products ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT \'available\'');
+    await client.query('ALTER TABLE Products ADD COLUMN IF NOT EXISTS views INT DEFAULT 0');
 
     await client.query(`
       DO $$ 
@@ -144,7 +150,18 @@ export const initDb = async () => {
     try {
       await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT');
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS balance NUMERIC DEFAULT 100000');
+      await client.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT \'Басқа\'');
     } catch (err) {}
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        id SERIAL PRIMARY KEY,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, product_id)
+      );
+    `);
 
     await client.query('COMMIT');
     console.log('Database tables successfully initialized!');

@@ -178,3 +178,60 @@ export const rejectSellerRequest = async (id) => {
   const response = await axios.put(`${API_URL}/admin/seller-requests/${id}/reject`, {}, getAuthHeaders());
   return response.data;
 };
+
+export const getFavorites = async () => {
+  const response = await axios.get(`${API_URL}/favorites`, getAuthHeaders());
+  return response.data;
+};
+
+export const addFavorite = async (productId) => {
+  const response = await axios.post(`${API_URL}/favorites`, { product_id: productId }, getAuthHeaders());
+  return response.data;
+};
+
+export const removeFavorite = async (productId) => {
+  await axios.delete(`${API_URL}/favorites/${productId}`, getAuthHeaders());
+};
+
+export const forgotPassword = async ({ email }) => {
+  const response = await axios.post(`${API_URL}/auth/forgot-password`, { email });
+  return response.data;
+};
+
+export const resetPasswordConfirm = async (token, newPassword) => {
+  const response = await axios.post(`${API_URL}/auth/reset-password-confirm`, { token, newPassword });
+  return response.data;
+};
+
+export const verifyEmail = async (token) => {
+  const response = await axios.post(`${API_URL}/auth/verify-email`, { token });
+  return response.data;
+};
+
+export const uploadImage = async (file) => {
+  const formData = new FormData();
+  formData.append('image', file);
+  const response = await axios.post(`${API_URL}/upload`, formData, {
+    headers: {
+      ...getAuthHeaders().headers,
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+
+export const getReviews = async (productId) => {
+  const response = await axios.get(`${API_URL}/products/${productId}/reviews`);
+  return response.data;
+};
+
+export const addReview = async (productId, reviewData) => {
+  const response = await axios.post(`${API_URL}/products/${productId}/reviews`, reviewData, getAuthHeaders());
+  return response.data;
+};
+
+export const incrementView = async (productId) => {
+  const response = await axios.post(`${API_URL}/products/${productId}/view`);
+  return response.data;
+};

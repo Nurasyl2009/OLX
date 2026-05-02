@@ -92,7 +92,7 @@ const Notifications = () => {
               <div className="notif-content">
                 {notif.title && <p className="notif-title-text">{notif.title}</p>}
                 <p className="notif-message">{notif.message}</p>
-                <span className="notif-time">{new Date(notif.created_at).toLocaleString('kk-KZ')}</span>
+                <span className="notif-time">{new Date(notif.created_at).toLocaleString('kk-KZ', { timeZone: 'Asia/Almaty' })}</span>
               </div>
               <div className="notif-status">
                 {!notif.is_read ? (

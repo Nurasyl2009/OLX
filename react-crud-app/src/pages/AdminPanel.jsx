@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getUsers, updateRole, deleteUser, getLogs, getProducts, deleteProduct, getAllOrders, getAdminSellerRequests, approveSellerRequest, rejectSellerRequest } from '../services/api';
 import { 
@@ -9,6 +10,7 @@ import {
 
 const AdminPanel = () => {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
@@ -17,6 +19,7 @@ const AdminPanel = () => {
   const [sellerRequests, setSellerRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -146,17 +149,31 @@ const AdminPanel = () => {
 
       {/* Main Content */}
       <main className="admin-main">
-        <header className="admin-top-bar">
-          <div className="search-box">
-            <Search size={18} />
-            <input type="text" placeholder="Search anything..." />
+        <header className="admin-top-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.2rem 2rem', background: 'white', borderBottom: '1px solid #e2e8f0', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+          <div className="search-box" style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', padding: '0.6rem 1rem', borderRadius: '12px', width: '300px' }}>
+            <Search size={18} color="#64748b" />
+            <input 
+              type="text" 
+              placeholder="Іздеу..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', marginLeft: '0.8rem', width: '100%', fontSize: '0.95rem' }} 
+            />
           </div>
-          <div className="top-bar-actions">
-            <button className="btn btn-primary btn-sm" style={{padding: '0.4rem 1rem', borderRadius: '8px'}}>
-                <ShoppingCart size={16} /> New Product
+          <div className="top-bar-actions" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={() => navigate('/')}
+              style={{ padding: '0.6rem 1.2rem', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600', transition: 'all 0.2s' }}
+              onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+                🏠 Басты бетке өту
             </button>
-            <Bell size={20} />
-            <div className="admin-profile-circle">A</div>
+            <Bell size={22} color="#64748b" style={{ cursor: 'pointer' }} />
+            <div className="admin-profile-circle" style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary-color), var(--secondary-color))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(99, 102, 241, 0.3)' }}>
+              A
+            </div>
           </div>
         </header>
 
@@ -258,7 +275,7 @@ const AdminPanel = () => {
                                   <td><strong>{o.title}</strong></td>
                                   <td>{o.buyer_name}</td>
                                   <td>{o.price} ₸</td>
-                                  <td>{new Date(o.ordered_at).toLocaleDateString()}</td>
+                                  <td>{new Date(o.ordered_at).toLocaleDateString('kk-KZ', { timeZone: 'Asia/Almaty' })}</td>
                               </tr>
                           ))}
                       </tbody>
@@ -284,7 +301,9 @@ const AdminPanel = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {users.map(u => (
+                          {users
+                            .filter(u => (u.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || (u.phone || '').includes(searchQuery))
+                            .map(u => (
                             <tr key={u.id}>
                               <td>{u.name}</td>
                               <td>{u.phone}</td>
@@ -316,7 +335,9 @@ const AdminPanel = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {products.map(p => (
+                          {products
+                            .filter(p => (p.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || (p.seller_name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map(p => (
                             <tr key={p.id}>
                               <td>{p.title}</td>
                               <td>{p.seller_name}</td>
@@ -343,13 +364,15 @@ const AdminPanel = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {orders.map(o => (
+                          {orders
+                            .filter(o => (o.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || (o.buyer_name || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map(o => (
                             <tr key={o.order_id}>
                               <td>{o.title}</td>
                               <td>{o.buyer_name}</td>
                               <td>{o.seller_name}</td>
                               <td>{o.price} ₸</td>
-                              <td>{new Date(o.ordered_at).toLocaleDateString()}</td>
+                              <td>{new Date(o.ordered_at).toLocaleDateString('kk-KZ', { timeZone: 'Asia/Almaty' })}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -358,9 +381,11 @@ const AdminPanel = () => {
 
                     {activeTab === 'logs' && (
                       <div className="logs-list">
-                        {logs.map(l => (
+                        {logs
+                          .filter(l => (l.action || '').toLowerCase().includes(searchQuery.toLowerCase()) || (l.details || '').toLowerCase().includes(searchQuery.toLowerCase()))
+                          .map(l => (
                           <div key={l.id} className="log-item">
-                            <span className="log-time">{new Date(l.created_at).toLocaleString()}</span>
+                            <span className="log-time">{new Date(l.created_at).toLocaleString('kk-KZ', { timeZone: 'Asia/Almaty' })}</span>
                             <span className="log-action"><strong>{l.action}</strong></span>
                             <p className="log-details"><strong>{l.user_name || 'Guest'}</strong>: {l.details}</p>
                           </div>
@@ -381,15 +406,15 @@ const AdminPanel = () => {
               <p className="view-subtitle">Пайдаланушылардың сатушы болу өтінімдері</p>
               {loading ? <p>Жүктелуде...</p> : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
-                  {sellerRequests.length === 0 ? (
+                  {sellerRequests.filter(r => (r.user_name || '').toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
                     <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '3rem' }}>Өтінімдер жоқ</p>
-                  ) : sellerRequests.map(req => (
+                  ) : sellerRequests.filter(r => (r.user_name || '').toLowerCase().includes(searchQuery.toLowerCase())).map(req => (
                     <div key={req.id} style={{ padding: '1.5rem', borderRadius: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                       <div style={{ flex: 1 }}>
                         <p style={{ fontWeight: '700', margin: '0 0 4px 0' }}>{req.user_name}</p>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 8px 0' }}>{req.user_phone}</p>
                         {req.reason && <p style={{ fontSize: '0.9rem', margin: 0 }}>"{req.reason}"</p>}
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '6px 0 0 0' }}>{new Date(req.created_at).toLocaleString()}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '6px 0 0 0' }}>{new Date(req.created_at).toLocaleString('kk-KZ', { timeZone: 'Asia/Almaty' })}</p>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         {req.status === 'pending' ? (

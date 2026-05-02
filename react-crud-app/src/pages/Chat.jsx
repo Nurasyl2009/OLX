@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { getConversations, getChatHistory, sendMessage, getUsersList } from '../services/api';
 
 const Chat = () => {
-  const { user } = useAuth();
+  const { user, socket } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -17,20 +17,31 @@ const Chat = () => {
   const [allUsers, setAllUsers] = useState([]);
   const [userSearch, setUserSearch] = useState('');
   const messagesEndRef = useRef(null);
-  const pollRef = useRef(null);
 
   useEffect(() => {
     fetchConversations();
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  useEffect(() => {
+    if (socket) {
+      const handleNewMessage = (msg) => {
+        // If message is from currently selected user, add to messages list
+        if (selectedUser && (msg.sender_id === selectedUser.id || msg.receiver_id === selectedUser.id)) {
+          setMessages(prev => [...prev, msg]);
+        }
+        // Refresh conversations list to update preview/unread count
+        fetchConversations();
+      };
+
+      socket.on('new_message', handleNewMessage);
+      return () => socket.off('new_message', handleNewMessage);
+    }
+  }, [socket, selectedUser]);
 
   useEffect(() => {
     if (selectedUser) {
       fetchChat(selectedUser.id);
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(() => fetchChat(selectedUser.id), 4000);
     }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [selectedUser]);
 
   useEffect(() => {
@@ -58,10 +69,10 @@ const Chat = () => {
     if (!newMsg.trim() || !selectedUser || sending) return;
     setSending(true);
     try {
-      await sendMessage(selectedUser.id, newMsg.trim());
+      const sentMsg = await sendMessage(selectedUser.id, newMsg.trim());
       setNewMsg('');
-      await fetchChat(selectedUser.id);
-      await fetchConversations();
+      setMessages(prev => [...prev, sentMsg]);
+      fetchConversations();
     } catch (err) {
       alert(err.response?.data?.error || 'Хабарлама жіберу қатесі');
     } finally { setSending(false); }
@@ -185,7 +196,7 @@ const Chat = () => {
                     <div key={msg.id} className={`chat-bubble ${msg.sender_id === user.id ? 'sent' : 'received'}`}>
                       <p className="chat-bubble-text">{msg.message_text}</p>
                       <span className="chat-bubble-time">
-                        {new Date(msg.created_at).toLocaleTimeString('kk-KZ', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(msg.created_at).toLocaleTimeString('kk-KZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Almaty' })}
                         {msg.sender_id === user.id && (
                           <span className="chat-read-status">{msg.is_read ? ' ✓✓' : ' ✓'}</span>
                         )}
@@ -229,9 +240,9 @@ function formatTime(dateStr) {
   const d = new Date(dateStr);
   const now = new Date();
   const diff = now - d;
-  if (diff < 86400000) return d.toLocaleTimeString('kk-KZ', { hour: '2-digit', minute: '2-digit' });
-  if (diff < 604800000) return d.toLocaleDateString('kk-KZ', { weekday: 'short' });
-  return d.toLocaleDateString('kk-KZ', { day: '2-digit', month: '2-digit' });
+  if (diff < 86400000) return d.toLocaleTimeString('kk-KZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Almaty' });
+  if (diff < 604800000) return d.toLocaleDateString('kk-KZ', { weekday: 'short', timeZone: 'Asia/Almaty' });
+  return d.toLocaleDateString('kk-KZ', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Almaty' });
 }
 
 export default Chat;

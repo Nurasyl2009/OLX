@@ -121,7 +121,7 @@ const Profile = () => {
                     <div key={order.order_id} style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                         <p style={{ margin: 0, fontWeight: '700' }}>{order.title}</p>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>{new Date(order.ordered_at).toLocaleDateString()}</p>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>{new Date(order.ordered_at).toLocaleDateString('kk-KZ', { timeZone: 'Asia/Almaty' })}</p>
                         </div>
                         <p style={{ fontWeight: '800', color: '#22c55e', margin: 0 }}>{order.price} ₸</p>
                     </div>
@@ -155,7 +155,7 @@ const Profile = () => {
                     {notifications.length > 0 ? notifications.map(notif => (
                     <div key={notif.id} style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', background: notif.is_read ? 'transparent' : 'rgba(99, 102, 241, 0.05)', borderRadius: '12px', marginBottom: '0.5rem' }}>
                         <p style={{ margin: 0, fontWeight: notif.is_read ? '400' : '700' }}>{notif.message}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>{new Date(notif.created_at).toLocaleString()}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>{new Date(notif.created_at).toLocaleString('kk-KZ', { timeZone: 'Asia/Almaty' })}</p>
                     </div>
                     )) : <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Хабарламалар жоқ.</p>}
                 </div>
