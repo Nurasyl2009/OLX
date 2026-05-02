@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { X, Star, Send, ShoppingBag, User, Calendar, MessageCircle, TrendingUp } from 'lucide-react';
 import { getReviews, addReview, incrementView } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { X, Star, Send, ShoppingBag, User, Calendar, MessageCircle, TrendingUp } from 'lucide-react';
-import { getReviews, addReview } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 
 const ProductDetailsModal = ({ product, onClose }) => {
   const { user } = useAuth();
