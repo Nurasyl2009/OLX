@@ -19,7 +19,8 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-      const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000');
+      const socketUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? window.location.origin : 'http://localhost:5000');
+      const newSocket = io(socketUrl);
       newSocket.emit('join', user.id);
       setSocket(newSocket);
 

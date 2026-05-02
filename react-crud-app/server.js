@@ -115,7 +115,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Send verification email if email provided
     if (email) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
       const verifyLink = `${frontendUrl}/verify-email?token=${verificationToken}`;
       
       await transporter.sendMail({
@@ -219,7 +219,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     }
 
     const resetToken = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: '15m' });
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || (req.protocol + '://' + req.get('host'));
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     await transporter.sendMail({

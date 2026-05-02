@@ -145,7 +145,7 @@ const ProductDetailsModal = ({ product, onClose }) => {
           {/* Image */}
           <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', height: '280px' }}>
             <img
-              src={product.image_url?.startsWith('http') ? product.image_url : `http://localhost:5000${product.image_url}`}
+              src={product.image_url?.startsWith('http') ? product.image_url : `${import.meta.env.PROD ? '' : 'http://localhost:5000'}${product.image_url}`}
               alt={product.title}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={e => { e.target.src = 'https://via.placeholder.com/400x280?text=Сурет+жоқ'; }}
