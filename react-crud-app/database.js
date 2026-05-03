@@ -10,7 +10,9 @@ pg.types.setTypeParser(1114, str => new Date(str + 'Z'));
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
     })
   : new Pool({
       user: process.env.DB_USER,
@@ -18,11 +20,13 @@ const pool = process.env.DATABASE_URL
       host: process.env.DB_HOST,
       port: process.env.DB_PORT,
       database: process.env.DB_NAME,
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
     });
 
 pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
-  process.exit(-1);
+  console.error('[DB] Unexpected error on idle client:', err.message);
+  // Do NOT call process.exit — let the server keep running
 });
 
 export const query = (text, params) => pool.query(text, params);

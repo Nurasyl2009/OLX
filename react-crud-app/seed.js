@@ -145,10 +145,9 @@ const products = [
 
 async function seed() {
   try {
-    // get an admin or seller user
     const users = await query('SELECT id FROM users LIMIT 1');
     if (users.rows.length === 0) {
-      console.log('Дерекқорда бірде-бір пайдаланушы жоқ. Өтінемін, алдымен тіркеліңіз.');
+      console.log('Дерекқорда пайдаланушы жоқ.');
       process.exit(1);
     }
     const sellerId = users.rows[0].id;

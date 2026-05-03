@@ -323,16 +323,69 @@ app.post('/api/products/:id/reviews', authenticateToken, async (req, res) => {
 
 app.get('/api/products', async (req, res) => {
   try {
-    const result = await query(`
+    const { search, category, minPrice, maxPrice, sort, page = 1, limit = 12 } = req.query;
+    
+    let queryStr = `
       SELECT p.*, u.name as seller_name, 
       (SELECT AVG(rating) FROM reviews WHERE product_id = p.id) as avg_rating,
       (SELECT COUNT(*) FROM reviews WHERE product_id = p.id) as reviews_count
       FROM products p 
       JOIN users u ON p.seller_id = u.id 
-      WHERE p.status = 'available' 
-      ORDER BY p.id DESC
-    `);
-    res.json(result.rows);
+      WHERE p.status = 'available'
+    `;
+    let countQueryStr = `SELECT COUNT(*) FROM products p WHERE p.status = 'available'`;
+    
+    let whereClauses = [];
+    let queryParams = [];
+    
+    if (search) {
+      queryParams.push(`%${search}%`);
+      whereClauses.push(`p.title ILIKE $${queryParams.length}`);
+    }
+    if (category && category !== 'Барлығы') {
+      queryParams.push(category);
+      whereClauses.push(`p.category = $${queryParams.length}`);
+    }
+    if (minPrice) {
+      queryParams.push(minPrice);
+      whereClauses.push(`p.price >= $${queryParams.length}`);
+    }
+    if (maxPrice) {
+      queryParams.push(maxPrice);
+      whereClauses.push(`p.price <= $${queryParams.length}`);
+    }
+
+    if (whereClauses.length > 0) {
+      const additionalWhere = ' AND ' + whereClauses.join(' AND ');
+      queryStr += additionalWhere;
+      countQueryStr += additionalWhere;
+    }
+
+    const countRes = await query(countQueryStr, queryParams);
+    const totalCount = parseInt(countRes.rows[0].count);
+
+    if (sort === 'price_asc') {
+      queryStr += ` ORDER BY p.price ASC, p.id DESC`;
+    } else if (sort === 'price_desc') {
+      queryStr += ` ORDER BY p.price DESC, p.id DESC`;
+    } else {
+      queryStr += ` ORDER BY p.id DESC`;
+    }
+
+    queryParams.push(limit);
+    queryStr += ` LIMIT $${queryParams.length}`;
+    
+    queryParams.push((page - 1) * limit);
+    queryStr += ` OFFSET $${queryParams.length}`;
+
+    const result = await query(queryStr, queryParams);
+    
+    res.json({
+      products: result.rows,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: parseInt(page)
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -832,6 +885,14 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+// В терминале могла остаться переменная NODE_ENV='test'.
+// Надежнее проверять, запущен ли скрипт через mocha
+const isMocha = process.argv.some(arg => arg.includes('mocha'));
+
+if (!isMocha) {
+  server.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
+
+export { app, server };

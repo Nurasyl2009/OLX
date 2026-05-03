@@ -2,6 +2,23 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
 
+// Global interceptor: auto-logout on expired/invalid token (401 or 403)
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      const currentToken = localStorage.getItem('token');
+      if (currentToken) {
+        // Token exists but is rejected by server — clear it and reload
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token');
   return {
@@ -34,13 +51,13 @@ export const logoutUser = () => {
   localStorage.removeItem('user');
 };
 
-export const getProducts = async () => {
+export const getProducts = async (params = {}) => {
   try {
-    const response = await axios.get(`${API_URL}/products`);
+    const response = await axios.get(`${API_URL}/products`, { params });
     return response.data;
   } catch (error) {
     console.error('Error fetching products:', error);
-    return [];
+    return { products: [], totalCount: 0, totalPages: 0, currentPage: 1 };
   }
 };
 

@@ -1,50 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SearchBar from '../components/SearchBar';
 import ProductCard from '../components/ProductCard';
 import ProductDetailsModal from '../components/ProductDetailsModal';
+import { getProducts } from '../services/api';
 
 const Home = ({ 
-  loading, 
   searchQuery, 
   setSearchQuery, 
-  filteredProducts, 
   handleDeleteProduct, 
   openEditModal, 
   addToCart,
   favorites,
-  onToggleFavorite
+  onToggleFavorite,
+  refreshKey
 }) => {
   const [selectedCategory, setSelectedCategory] = useState('Барлығы');
   const [sortOption, setSortOption] = useState('newest');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
+  
+  const [products, setProducts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const categories = ['Барлығы', 'Электроника', 'Киім', 'Көлік', 'Үй жабдықтары', 'Басқа'];
 
-  let finalProducts = [...filteredProducts];
+  const fetchProducts = async (pageNumber, isAppend = false) => {
+    if (!isAppend) setLoading(true);
+    else setLoadingMore(true);
 
-  // Category filter
-  if (selectedCategory !== 'Барлығы') {
-    finalProducts = finalProducts.filter(p => p.category === selectedCategory);
-  }
+    try {
+      const data = await getProducts({
+        search: searchQuery,
+        category: selectedCategory,
+        minPrice,
+        maxPrice,
+        sort: sortOption,
+        page: pageNumber,
+        limit: 12
+      });
 
-  // Price range filter
-  if (minPrice !== '') {
-    finalProducts = finalProducts.filter(p => Number(p.price) >= Number(minPrice));
-  }
-  if (maxPrice !== '') {
-    finalProducts = finalProducts.filter(p => Number(p.price) <= Number(maxPrice));
-  }
+      if (isAppend) {
+        setProducts(prev => [...prev, ...data.products]);
+      } else {
+        setProducts(data.products);
+      }
+      setTotalPages(data.totalPages);
+      setPage(pageNumber);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
 
-  // Sorting
-  if (sortOption === 'price_asc') {
-    finalProducts.sort((a, b) => Number(a.price) - Number(b.price));
-  } else if (sortOption === 'price_desc') {
-    finalProducts.sort((a, b) => Number(b.price) - Number(a.price));
-  } else {
-    finalProducts.sort((a, b) => b.id - a.id);
-  }
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchProducts(1);
+    }, 400); // Debounce to prevent too many API requests while typing
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, selectedCategory, sortOption, minPrice, maxPrice, refreshKey]);
+
+  const loadMore = () => {
+    if (page < totalPages) {
+      fetchProducts(page + 1, true);
+    }
+  };
+
+  // Replace App's handleDeleteProduct with local UI update + API call if needed
+  // App.jsx still passes handleDeleteProduct which does API call and filtered state update.
+  // We can wrap it to also update local state instantly.
+  const handleLocalDelete = async (id) => {
+    await handleDeleteProduct(id);
+    setProducts(prev => prev.filter(p => p.id !== id));
+  };
 
   return (
     <main>
@@ -108,12 +142,12 @@ const Home = ({
       ) : (
         <>
           <div className="product-grid">
-            {finalProducts.length > 0 ? (
-              finalProducts.map(product => (
+            {products.length > 0 ? (
+              products.map(product => (
                 <ProductCard 
                   key={product.id} 
                   product={product} 
-                  onDelete={handleDeleteProduct}
+                  onDelete={handleLocalDelete}
                   onEdit={openEditModal}
                   onAddToCart={addToCart}
                   isFavorite={favorites.includes(product.id)}
@@ -127,6 +161,19 @@ const Home = ({
               </div>
             )}
           </div>
+          
+          {page < totalPages && (
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+              <button 
+                onClick={loadMore} 
+                disabled={loadingMore}
+                className="btn btn-primary"
+                style={{ padding: '0.8rem 2rem', borderRadius: '25px' }}
+              >
+                {loadingMore ? 'Жүктелуде...' : 'Тағы көрсету'}
+              </button>
+            </div>
+          )}
 
           {selectedProduct && (
             <ProductDetailsModal 

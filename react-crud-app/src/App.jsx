@@ -23,13 +23,12 @@ import { getProducts, createProduct, updateProduct, deleteProduct, getFavorites,
 import './App.css';
 
 function App() {
-  const [products, setProducts] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState([]);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
   const { user } = useAuth();
@@ -66,24 +65,12 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const data = await getProducts();
-        setProducts(data);
-      } catch (error) {
-        console.error('Failed to load products');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInitialData();
-  }, []);
+
 
   const handleAddProduct = async (productData) => {
     try {
-      const newProduct = await createProduct(productData);
-      setProducts(prev => [{ ...newProduct, seller_name: user.name }, ...prev]);
+      await createProduct(productData);
+      setRefreshKey(prev => prev + 1);
       setIsProductModalOpen(false);
     } catch (error) {
       alert('Тауар қосу кезінде қате кетті');
@@ -92,8 +79,8 @@ function App() {
 
   const handleUpdateProduct = async (productData) => {
     try {
-      const updated = await updateProduct(productData.id, productData);
-      setProducts(prev => prev.map(p => p.id === productData.id ? { ...p, ...updated } : p));
+      await updateProduct(productData.id, productData);
+      setRefreshKey(prev => prev + 1);
       setIsProductModalOpen(false);
       setEditingProduct(null);
     } catch (error) {
@@ -105,7 +92,7 @@ function App() {
     if (window.confirm('Бұл тауарды өшіргіңіз келетініне сенімдісіз бе?')) {
       try {
         await deleteProduct(id);
-        setProducts(prev => prev.filter(p => p.id !== id));
+        setRefreshKey(prev => prev + 1);
       } catch (error) {
         alert('Тауарды өшіру кезінде қате кетті');
       }
@@ -147,9 +134,7 @@ function App() {
     setIsProductModalOpen(true);
   };
 
-  const filteredProducts = products.filter(p => 
-    (p.title || '').toLowerCase().includes((searchQuery || '').toLowerCase())
-  );
+
 
   return (
     <div className="app-container">
@@ -164,10 +149,9 @@ function App() {
       <Routes>
         <Route path="/" element={
           <Home 
-            loading={loading}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            filteredProducts={filteredProducts}
+            refreshKey={refreshKey}
             handleDeleteProduct={handleDeleteProduct}
             openEditModal={openEditModal}
             addToCart={addToCart}
@@ -177,8 +161,7 @@ function App() {
         } />
         <Route path="/favorites" element={
           <ProtectedRoute>
-            <Favorites 
-              products={products.filter(p => favorites.includes(p.id))} 
+            <Favorites  
               handleDeleteProduct={handleDeleteProduct}
               openEditModal={openEditModal}
               addToCart={addToCart}

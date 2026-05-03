@@ -32,8 +32,8 @@ const AdminPanel = () => {
         const data = await getUsers();
         setUsers(data);
       } else if (activeTab === 'products') {
-        const data = await getProducts();
-        setProducts(data);
+        const data = await getProducts({ limit: 1000 }); // Admin needs all products
+        setProducts(data.products || []);
       } else if (activeTab === 'logs') {
         const data = await getLogs();
         setLogs(data);
@@ -52,7 +52,7 @@ const AdminPanel = () => {
             getAdminSellerRequests()
           ]);
           setUsers(u);
-          setProducts(p);
+          setProducts(p.products || []);
           setLogs(l);
           setOrders(o);
           setSellerRequests(sr);

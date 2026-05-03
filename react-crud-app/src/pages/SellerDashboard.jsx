@@ -19,7 +19,8 @@ const SellerDashboard = () => {
         ]);
         setStats(s);
         // Filter products to show only current seller's products
-        setMyProducts(p.filter(prod => prod.seller_id === user.id));
+        const allProducts = p.products || [];
+        setMyProducts(allProducts.filter(prod => prod.seller_id === user.id));
       } catch (err) {
         console.error('Failed to fetch seller data');
       } finally {
