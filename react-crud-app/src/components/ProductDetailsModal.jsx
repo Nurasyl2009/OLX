@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Star, Send, ShoppingBag, User, Calendar, MessageCircle, TrendingUp, ChevronLeft, ChevronRight, Images } from 'lucide-react';
-import { getReviews, addReview, incrementView, getProductImages } from '../services/api';
+import { getReviews, addReview, incrementView, getProductImages, getImageUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const ProductDetailsModal = ({ product, onClose }) => {
@@ -160,9 +160,7 @@ const ProductDetailsModal = ({ product, onClose }) => {
             {galleryImages.length > 0 ? (
               <>
                 <img
-                  src={galleryImages[currentImageIndex]?.image_url?.startsWith('http') 
-                    ? galleryImages[currentImageIndex]?.image_url 
-                    : `${import.meta.env.PROD ? '' : 'http://localhost:5000'}${galleryImages[currentImageIndex]?.image_url}`}
+                  src={getImageUrl(galleryImages[currentImageIndex]?.image_url)}
                   alt={product.title}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'opacity 0.3s ease' }}
                   onError={e => { e.target.src = 'https://via.placeholder.com/400x280?text=Сурет+жоқ'; }}

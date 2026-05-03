@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getSellerStats, getProducts } from '../services/api';
+import { getSellerStats, getProducts, getImageUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { TrendingUp, Package, DollarSign, ShoppingCart, ArrowUpRight, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -98,7 +98,7 @@ const SellerDashboard = () => {
                   <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        {p.image_url && <img src={p.image_url.startsWith('http') ? p.image_url : `${import.meta.env.PROD ? '' : 'http://localhost:5000'}${p.image_url}`} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />}
+                        {p.image_url && <img src={getImageUrl(p.image_url)} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />}
                         <span style={{ fontWeight: '600' }}>{p.title}</span>
                       </div>
                     </td>

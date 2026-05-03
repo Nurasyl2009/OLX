@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trash2, Edit3, ShoppingCart, Heart, Star, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getImageUrl } from '../services/api';
 
 const ProductCard = ({ product, onDelete, onEdit, onAddToCart, isFavorite, onToggleFavorite, onView }) => {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ const ProductCard = ({ product, onDelete, onEdit, onAddToCart, isFavorite, onTog
         {product.image_url ? (
           <img 
             className="product-image" 
-            src={product.image_url.startsWith('http') ? product.image_url : `${import.meta.env.PROD ? '' : 'http://localhost:5000'}${product.image_url}`}
+            src={getImageUrl(product.image_url)}
             alt={product.title} 
           />
         ) : (

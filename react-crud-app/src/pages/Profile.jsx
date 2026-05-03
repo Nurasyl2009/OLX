@@ -1,8 +1,8 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { User, Package, ShoppingBag, Settings, Bell, BarChart3, Camera, Upload } from 'lucide-react';
-import { getOrders, getNotifications, getSellerStats, markNotificationsAsRead, submitSellerRequest, getSellerRequestStatus, uploadAvatar } from '../services/api';
+import { getOrders, getNotifications, getSellerStats, markNotificationsAsRead, submitSellerRequest, getSellerRequestStatus, uploadAvatar, getImageUrl } from '../services/api';
 
 const Profile = () => {
   const { user, refreshUser } = useAuth();
@@ -79,7 +79,7 @@ const Profile = () => {
             title="Аватар өзгерту"
           >
             {avatarUrl ? (
-              <img src={avatarUrl.startsWith('http') ? avatarUrl : `http://localhost:5000${avatarUrl}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={getImageUrl(avatarUrl)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <User size={50} color="white" />
             )}
@@ -161,7 +161,7 @@ const Profile = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         {order.image_url && (
                           <img
-                            src={order.image_url.startsWith('http') ? order.image_url : `http://localhost:5000${order.image_url}`}
+                            src={getImageUrl(order.image_url)}
                             alt={order.title}
                             style={{ width: '60px', height: '60px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
                             onError={e => e.target.style.display='none'}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Upload, Tag, DollarSign, AlignLeft, Image as ImageIcon, Package, Info, Plus, Trash2 } from 'lucide-react';
-import { uploadImage, addProductImage, deleteProductImage, getProductImages } from '../services/api';
+import { uploadImage, addProductImage, deleteProductImage, getProductImages, getImageUrl } from '../services/api';
 
 const ProductForm = ({ product, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -110,7 +110,7 @@ const ProductForm = ({ product, onClose, onSubmit }) => {
                 </div>
               ) : formData.image_url ? (
                 <div style={{ position: 'relative', width: '100%' }}>
-                  <img src={formData.image_url} alt="Preview" style={{ width: '100%', height: '200px', objectFit: 'contain', borderRadius: '12px' }} />
+                  <img src={getImageUrl(formData.image_url)} alt="Preview" style={{ width: '100%', height: '200px', objectFit: 'contain', borderRadius: '12px' }} />
                   <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', padding: '5px 15px', borderRadius: '20px', fontSize: '0.8rem', color: 'white' }}>Басқа сурет таңдау</div>
                 </div>
               ) : (
@@ -202,7 +202,7 @@ const ProductForm = ({ product, onClose, onSubmit }) => {
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 {galleryImages.map(img => (
                   <div key={img.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '10px', overflow: 'hidden', border: '2px solid rgba(99,102,241,0.3)' }}>
-                    <img src={img.image_url.startsWith('http') ? img.image_url : `http://localhost:5000${img.image_url}`} alt="gallery" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={getImageUrl(img.image_url)} alt="gallery" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <button
                       type="button"
                       onClick={async () => {
