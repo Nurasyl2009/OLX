@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { User, Package, ShoppingBag, Settings, Bell, BarChart3 } from 'lucide-react';
-import { getOrders, getNotifications, getSellerStats, markNotificationsAsRead, submitSellerRequest, getSellerRequestStatus } from '../services/api';
+import { User, Package, ShoppingBag, Settings, Bell, BarChart3, Camera, Upload } from 'lucide-react';
+import { getOrders, getNotifications, getSellerStats, markNotificationsAsRead, submitSellerRequest, getSellerRequestStatus, uploadAvatar } from '../services/api';
 
 const Profile = () => {
   const { user, refreshUser } = useAuth();
@@ -13,6 +13,9 @@ const Profile = () => {
   const [sellerRequest, setSellerRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('orders');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -47,13 +50,48 @@ const Profile = () => {
     if (user) fetchProfileData();
   }, [user, activeTab]);
 
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const data = await uploadAvatar(file);
+      setAvatarUrl(data.url);
+      await refreshUser();
+    } catch (err) {
+      alert('Аватар жүктеу кезінде қате кетті');
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = '';
+    }
+  };
+
   if (!user) return <div className="container">Кіру қажет...</div>;
 
   return (
     <div className="container" style={{ padding: '2rem 0' }}>
       <div className="profile-header glass-effect" style={{ padding: '2rem', borderRadius: '20px', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '2rem' }}>
-        <div className="profile-avatar" style={{ width: '100px', height: '100px', borderRadius: '50%', background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-          <User size={50} />
+        {/* Avatar with upload */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div
+            style={{ width: '100px', height: '100px', borderRadius: '50%', overflow: 'hidden', border: '3px solid rgba(99,102,241,0.5)', cursor: 'pointer', background: 'var(--primary-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => avatarInputRef.current?.click()}
+            title="Аватар өзгерту"
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl.startsWith('http') ? avatarUrl : `http://localhost:5000${avatarUrl}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <User size={50} color="white" />
+            )}
+          </div>
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarUploading}
+            style={{ position: 'absolute', bottom: '2px', right: '2px', background: '#6366f1', border: 'none', borderRadius: '50%', width: '28px', height: '28px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {avatarUploading ? <span style={{ fontSize: '10px' }}>...</span> : <Camera size={14} />}
+          </button>
+          <input type="file" accept="image/*" ref={avatarInputRef} style={{ display: 'none' }} onChange={handleAvatarUpload} />
         </div>
         <div>
           <div style={{display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem'}}>
@@ -62,7 +100,8 @@ const Profile = () => {
               {user.role.toUpperCase()}
             </span>
           </div>
-          <p style={{ color: '#64748b' }}>{user.phone}</p>
+          <p style={{ color: '#64748b', margin: '0 0 0.25rem' }}>{user.phone}</p>
+          {user.email && <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>{user.email}</p>}
         </div>
       </div>
 
@@ -114,20 +153,34 @@ const Profile = () => {
         <div className="profile-main">
           {activeTab === 'orders' && (
             <section className="glass-effect" style={{ padding: '2rem', borderRadius: '24px' }}>
-                <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Соңғы тапсырыстар</h2>
-                {loading ? <p>Жүктелуде...</p> : (
-                <div className="orders-list">
-                    {orders.length > 0 ? orders.map(order => (
-                    <div key={order.order_id} style={{ padding: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem' }}>Сатып алу тарихы</h2>
+              {loading ? <p>Жүктелуде...</p> : (
+                <div>
+                  {orders.length > 0 ? orders.map(order => (
+                    <div key={order.order_id} style={{ padding: '1.25rem', marginBottom: '1rem', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        {order.image_url && (
+                          <img
+                            src={order.image_url.startsWith('http') ? order.image_url : `http://localhost:5000${order.image_url}`}
+                            alt={order.title}
+                            style={{ width: '60px', height: '60px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
+                            onError={e => e.target.style.display='none'}
+                          />
+                        )}
                         <div>
-                        <p style={{ margin: 0, fontWeight: '700' }}>{order.title}</p>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>{new Date(order.ordered_at).toLocaleDateString('kk-KZ', { timeZone: 'Asia/Almaty' })}</p>
+                          <p style={{ margin: 0, fontWeight: '700', fontSize: '1rem' }}>{order.title}</p>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>Сатушы: {order.seller_name}</p>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>{new Date(order.ordered_at).toLocaleDateString('kk-KZ', { timeZone: 'Asia/Almaty' })}</p>
                         </div>
-                        <p style={{ fontWeight: '800', color: '#22c55e', margin: 0 }}>{order.price} ₸</p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontWeight: '900', color: '#22c55e', margin: 0, fontSize: '1.1rem' }}>{Number(order.price).toLocaleString()} ₸</p>
+                        <span style={{ fontSize: '0.7rem', color: '#64748b', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: '10px', display: 'inline-block', marginTop: '4px' }}>#ORD-{order.order_id}</span>
+                      </div>
                     </div>
-                    )) : <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Тапсырыстар жоқ.</p>}
+                  )) : <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>Тапсырыстар жоқ.</p>}
                 </div>
-                )}
+              )}
             </section>
           )}
 

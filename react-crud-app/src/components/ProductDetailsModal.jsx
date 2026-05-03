@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Star, Send, ShoppingBag, User, Calendar, MessageCircle, TrendingUp } from 'lucide-react';
-import { getReviews, addReview, incrementView } from '../services/api';
+import { X, Star, Send, ShoppingBag, User, Calendar, MessageCircle, TrendingUp, ChevronLeft, ChevronRight, Images } from 'lucide-react';
+import { getReviews, addReview, incrementView, getProductImages } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const ProductDetailsModal = ({ product, onClose }) => {
@@ -14,11 +14,24 @@ const ProductDetailsModal = ({ product, onClose }) => {
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('info');
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    // Increment view count for the product when modal opens
     incrementView(product.id).catch(err => console.error('View increment failed', err));
     fetchReviews();
+    // Fetch gallery images
+    getProductImages(product.id).then(imgs => {
+      // Build combined list: cover image first, then additional gallery images
+      const allImages = [];
+      if (product.image_url) allImages.push({ id: 'cover', image_url: product.image_url });
+      imgs.forEach(img => {
+        if (img.image_url !== product.image_url) allImages.push(img);
+      });
+      setGalleryImages(allImages);
+    }).catch(() => {
+      if (product.image_url) setGalleryImages([{ id: 'cover', image_url: product.image_url }]);
+    });
   }, [product.id]);
 
   const fetchReviews = async () => {
@@ -142,26 +155,46 @@ const ProductDetailsModal = ({ product, onClose }) => {
 
         {/* Product Hero */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', padding: '2rem' }}>
-          {/* Image */}
-          <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', height: '280px' }}>
-            <img
-              src={product.image_url?.startsWith('http') ? product.image_url : `${import.meta.env.PROD ? '' : 'http://localhost:5000'}${product.image_url}`}
-              alt={product.title}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={e => { e.target.src = 'https://via.placeholder.com/400x280?text=Сурет+жоқ'; }}
-            />
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)'
-            }} />
-            {/* Category badge */}
+          {/* Image Gallery */}
+          <div style={{ position: 'relative', borderRadius: '20px', overflow: 'hidden', height: '280px', background: '#0f172a' }}>
+            {galleryImages.length > 0 ? (
+              <>
+                <img
+                  src={galleryImages[currentImageIndex]?.image_url?.startsWith('http') 
+                    ? galleryImages[currentImageIndex]?.image_url 
+                    : `${import.meta.env.PROD ? '' : 'http://localhost:5000'}${galleryImages[currentImageIndex]?.image_url}`}
+                  alt={product.title}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'opacity 0.3s ease' }}
+                  onError={e => { e.target.src = 'https://via.placeholder.com/400x280?text=Сурет+жоқ'; }}
+                />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 60%)' }} />
+                {galleryImages.length > 1 && (
+                  <>
+                    <button onClick={() => setCurrentImageIndex(i => (i - 1 + galleryImages.length) % galleryImages.length)}
+                      style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ChevronLeft size={20} />
+                    </button>
+                    <button onClick={() => setCurrentImageIndex(i => (i + 1) % galleryImages.length)}
+                      style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <ChevronRight size={20} />
+                    </button>
+                    <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '6px' }}>
+                      {galleryImages.map((_, idx) => (
+                        <button key={idx} onClick={() => setCurrentImageIndex(idx)}
+                          style={{ width: idx === currentImageIndex ? '20px' : '8px', height: '8px', borderRadius: '4px', background: idx === currentImageIndex ? 'white' : 'rgba(255,255,255,0.4)', border: 'none', cursor: 'pointer', transition: 'all 0.3s ease', padding: 0 }} />
+                      ))}
+                    </div>
+                    <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Images size={12} /> {currentImageIndex + 1}/{galleryImages.length}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>Сурет жоқ</div>
+            )}
             {product.category && (
-              <div style={{
-                position: 'absolute', top: '1rem', left: '1rem',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: 'white', padding: '4px 12px', borderRadius: '20px',
-                fontSize: '0.75rem', fontWeight: 600
-              }}>
+              <div style={{ position: 'absolute', top: '1rem', left: '1rem', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600 }}>
                 {product.category}
               </div>
             )}

@@ -167,6 +167,34 @@ export const initDb = async () => {
       );
     `);
 
+    // Reviews table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id SERIAL PRIMARY KEY,
+        product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        comment TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Product images table for gallery
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id SERIAL PRIMARY KEY,
+        product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        image_url TEXT NOT NULL,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Avatar URL for user profiles
+    try {
+      await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT');
+    } catch (err) {}
+
     await client.query('COMMIT');
     console.log('Database tables successfully initialized!');
   } catch (e) {

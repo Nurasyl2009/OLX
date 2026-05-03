@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Upload, Tag, DollarSign, AlignLeft, Image as ImageIcon, Package, Info } from 'lucide-react';
-import { uploadImage } from '../services/api';
+import { X, Upload, Tag, DollarSign, AlignLeft, Image as ImageIcon, Package, Info, Plus, Trash2 } from 'lucide-react';
+import { uploadImage, addProductImage, deleteProductImage, getProductImages } from '../services/api';
 
 const ProductForm = ({ product, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -12,10 +12,17 @@ const ProductForm = ({ product, onClose, onSubmit }) => {
     status: 'available'
   });
   const [uploading, setUploading] = useState(false);
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
   useEffect(() => {
-    if (product) setFormData(product);
+    if (product) {
+      setFormData(product);
+      // Load existing gallery images when editing
+      getProductImages(product.id).then(imgs => setGalleryImages(imgs)).catch(() => {});
+    }
   }, [product]);
 
   const handleChange = (e) => {
@@ -43,8 +50,8 @@ const ProductForm = ({ product, onClose, onSubmit }) => {
   };
 
   return (
-    <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', animation: 'fadeIn 0.3s ease' }}>
-      <div className="modal-content glass-effect" style={{ maxWidth: '600px', width: '95%', padding: '2.5rem', borderRadius: '24px', position: 'relative' }}>
+    <div className="modal-overlay" style={{ backdropFilter: 'blur(8px)', animation: 'fadeIn 0.3s ease', padding: '1rem' }}>
+      <div className="modal-content glass-effect pdm-scrollbar" style={{ maxWidth: '600px', width: '100%', padding: '2rem', borderRadius: '24px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
@@ -185,6 +192,60 @@ const ProductForm = ({ product, onClose, onSubmit }) => {
               style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', resize: 'vertical' }}
             />
           </div>
+
+          {/* Gallery Images (only shown when editing an existing product) */}
+          {product?.id && (
+            <div className="form-group" style={{ marginBottom: '2rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem', color: 'var(--text-muted)' }}>
+                <ImageIcon size={18} /> Қосымша суреттер (галерея)
+              </label>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                {galleryImages.map(img => (
+                  <div key={img.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '10px', overflow: 'hidden', border: '2px solid rgba(99,102,241,0.3)' }}>
+                    <img src={img.image_url.startsWith('http') ? img.image_url : `http://localhost:5000${img.image_url}`} alt="gallery" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await deleteProductImage(product.id, img.id);
+                        setGalleryImages(prev => prev.filter(i => i.id !== img.id));
+                      }}
+                      style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(239,68,68,0.85)', border: 'none', borderRadius: '50%', width: '20px', height: '20px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+                {galleryImages.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={galleryUploading}
+                    style={{ width: '80px', height: '80px', borderRadius: '10px', border: '2px dashed rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.05)', color: '#6366f1', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.7rem' }}
+                  >
+                    {galleryUploading ? '...' : <><Plus size={20} /><span>Сурет</span></>}
+                  </button>
+                )}
+                <input
+                  type="file" accept="image/*" ref={galleryInputRef} style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    setGalleryUploading(true);
+                    try {
+                      const newImg = await addProductImage(product.id, file);
+                      setGalleryImages(prev => [...prev, newImg]);
+                    } catch (err) {
+                      alert('Сурет жүктеу кезінде қате кетті');
+                    } finally {
+                      setGalleryUploading(false);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Максимум 5 сурет. Барлық суреттер тауар бетінде галерея ретінде көрсетіледі.</p>
+            </div>
+          )}
 
           <div className="form-actions" style={{ marginTop: '0', display: 'flex', gap: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem' }}>
             <button type="button" className="btn" onClick={onClose} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'white' }}>Бас тарту</button>

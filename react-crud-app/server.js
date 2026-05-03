@@ -36,19 +36,39 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const EMAIL_FROM_NAME = 'OLX Marketplace';
 const EMAIL_FROM_ADDRESS = 'kabdykadirov03@gmail.com';
 
+import nodemailer from 'nodemailer';
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 const sendEmail = async (to, subject, html) => {
-  const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
-    sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS },
-    to: [{ email: to }],
-    subject,
-    htmlContent: html
-  }, {
-    headers: {
-      'api-key': BREVO_API_KEY,
-      'Content-Type': 'application/json'
-    }
-  });
-  return response.data;
+  if (BREVO_API_KEY) {
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', {
+      sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html
+    }, {
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    return response.data;
+  } else {
+    // Fallback to Nodemailer
+    return await transporter.sendMail({
+      from: `"${EMAIL_FROM_NAME}" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html
+    });
+  }
 };
 
 app.use((req, res, next) => {
@@ -148,7 +168,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.get('/api/auth/profile', authenticateToken, async (req, res) => {
   try {
-    const result = await query('SELECT id, name, phone, email, role FROM users WHERE id = $1', [req.user.id]);
+    const result = await query('SELECT id, name, phone, email, role, balance, avatar_url FROM users WHERE id = $1', [req.user.id]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch profile' });
@@ -402,11 +422,73 @@ app.get('/api/my-products', authenticateToken, authorizeRoles('admin', 'seller')
   }
 });
 
+// Upload single image
 app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const baseUrl = req.protocol + '://' + req.get('host');
   const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
   res.json({ url: imageUrl });
+});
+
+// Upload avatar for user profile
+app.post('/api/auth/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const baseUrl = req.protocol + '://' + req.get('host');
+  const avatarUrl = `${baseUrl}/uploads/${req.file.filename}`;
+  await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl, req.user.id]);
+  res.json({ url: avatarUrl });
+});
+
+// Get product gallery images
+app.get('/api/products/:id/images', async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT * FROM product_images WHERE product_id = $1 ORDER BY sort_order ASC, id ASC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch product images' });
+  }
+});
+
+// Add image to product gallery
+app.post('/api/products/:id/images', authenticateToken, upload.single('image'), async (req, res) => {
+  try {
+    const prodCheck = await query('SELECT seller_id FROM products WHERE id = $1', [req.params.id]);
+    if (prodCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+    if (req.user.role !== 'admin' && prodCheck.rows[0].seller_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const baseUrl = req.protocol + '://' + req.get('host');
+    const imageUrl = `${baseUrl}/uploads/${req.file.filename}`;
+    const countRes = await query('SELECT COUNT(*) FROM product_images WHERE product_id = $1', [req.params.id]);
+    const sortOrder = parseInt(countRes.rows[0].count);
+    const result = await query(
+      'INSERT INTO product_images (product_id, image_url, sort_order) VALUES ($1, $2, $3) RETURNING *',
+      [req.params.id, imageUrl, sortOrder]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to add image' });
+  }
+});
+
+// Delete image from product gallery
+app.delete('/api/products/:productId/images/:imageId', authenticateToken, async (req, res) => {
+  try {
+    const prodCheck = await query('SELECT seller_id FROM products WHERE id = $1', [req.params.productId]);
+    if (prodCheck.rows.length === 0) return res.status(404).json({ error: 'Product not found' });
+    if (req.user.role !== 'admin' && prodCheck.rows[0].seller_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    await query('DELETE FROM product_images WHERE id = $1 AND product_id = $2', [req.params.imageId, req.params.productId]);
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete image' });
+  }
 });
 
 app.post('/api/products', authenticateToken, authorizeRoles('admin', 'seller'), async (req, res) => {
@@ -471,21 +553,62 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
   try {
     const { product_id } = req.body;
     
-    const prodRes = await query('SELECT seller_id, title FROM products WHERE id = $1', [product_id]);
+    const prodRes = await query(
+      'SELECT p.seller_id, p.title, p.price, u.email as seller_email, u.name as seller_name FROM products p JOIN users u ON p.seller_id = u.id WHERE p.id = $1',
+      [product_id]
+    );
     const product = prodRes.rows[0];
 
-    await query(
-      'INSERT INTO orders (product_id, buyer_id) VALUES ($1, $2)',
+    const orderRes = await query(
+      'INSERT INTO orders (product_id, buyer_id) VALUES ($1, $2) RETURNING id',
       [product_id, req.user.id]
     );
+    const orderId = orderRes.rows[0].id;
 
+    // Notify seller via in-app notification
     await query(
       'INSERT INTO notifications (user_id, message, type) VALUES ($1, $2, $3)',
       [product.seller_id, `Жаңа тапсырыс: ${product.title}`, 'order']
     );
 
+    // Send email receipt to buyer if they have email
+    const buyerRes = await query('SELECT email, name FROM users WHERE id = $1', [req.user.id]);
+    const buyer = buyerRes.rows[0];
+    if (buyer.email) {
+      const orderDate = new Date().toLocaleDateString('ru-RU', { timeZone: 'Asia/Almaty', year: 'numeric', month: 'long', day: 'numeric' });
+      sendEmail(
+        buyer.email,
+        `✅ Тапсырыс сәтті қабылданды — ${product.title}`,
+        `
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #e2e8f0; border-radius: 16px; overflow: hidden;">
+          <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 2rem; text-align: center;">
+            <h1 style="margin: 0; color: white; font-size: 1.5rem;">✅ Тапсырысыңыз қабылданды!</h1>
+            <p style="margin: 0.5rem 0 0; color: rgba(255,255,255,0.8); font-size: 0.9rem;">Satu.kz — Қолданылған заттар маркетплейсі</p>
+          </div>
+          <div style="padding: 2rem;">
+            <p style="font-size: 1rem; margin-bottom: 1.5rem;">Сәлем, <strong>${buyer.name}</strong>! Сіздің тапсырысыңыз сәтті қабылданды.</p>
+            <div style="background: #1e293b; border-radius: 12px; padding: 1.5rem; border: 1px solid #334155; margin-bottom: 1.5rem;">
+              <h2 style="margin: 0 0 1rem; font-size: 1.1rem; color: #94a3b8; font-weight: 600;">🧾 ЧЕК / КВИТАНЦИЯ</h2>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 0.5rem 0; color: #94a3b8; font-size: 0.85rem;">Тапсырыс №:</td><td style="text-align: right; font-weight: 700; color: #6366f1;">#ORD-${orderId}</td></tr>
+                <tr><td style="padding: 0.5rem 0; color: #94a3b8; font-size: 0.85rem;">Тауар:</td><td style="text-align: right; font-weight: 600;">${product.title}</td></tr>
+                <tr><td style="padding: 0.5rem 0; color: #94a3b8; font-size: 0.85rem;">Сатушы:</td><td style="text-align: right;">${product.seller_name}</td></tr>
+                <tr><td style="padding: 0.5rem 0; color: #94a3b8; font-size: 0.85rem;">Күні:</td><td style="text-align: right;">${orderDate}</td></tr>
+                <tr style="border-top: 1px solid #334155;"><td style="padding: 1rem 0 0; font-size: 1rem; font-weight: 700;">Жалпы сома:</td><td style="text-align: right; font-size: 1.25rem; font-weight: 900; color: #22c55e; padding-top: 1rem;">${Number(product.price).toLocaleString()} ₸</td></tr>
+              </table>
+            </div>
+            <div style="background: #1e293b; border-radius: 12px; padding: 1rem 1.5rem; border-left: 4px solid #6366f1;">
+              <p style="margin: 0; font-size: 0.9rem; color: #94a3b8;">📞 Сатушы жақын арада сізбен байланысады. Олармен чат арқылы да хабарласа аласыз.</p>
+            </div>
+            <p style="margin-top: 2rem; font-size: 0.8rem; color: #475569; text-align: center;">Satu.kz маркетплейсіне сенімдеріңіз үшін рахмет!</p>
+          </div>
+        </div>
+        `
+      ).catch(err => console.error('Receipt email error:', err.message));
+    }
+
     logAction('Product Order', req.user.id, `Product ID: ${product_id}`);
-    res.status(201).json({ message: 'Order placed successfully' });
+    res.status(201).json({ message: 'Order placed successfully', orderId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to place order' });

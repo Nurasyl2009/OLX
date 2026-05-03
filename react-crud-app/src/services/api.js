@@ -252,3 +252,32 @@ export const incrementView = async (productId) => {
   const response = await axios.post(`${API_URL}/products/${productId}/view`);
   return response.data;
 };
+
+// Product gallery images
+export const getProductImages = async (productId) => {
+  const response = await axios.get(`${API_URL}/products/${productId}/images`);
+  return response.data;
+};
+
+export const addProductImage = async (productId, file) => {
+  const formData = new FormData();
+  formData.append('image', file);
+  const response = await axios.post(`${API_URL}/products/${productId}/images`, formData, {
+    headers: { ...getAuthHeaders().headers, 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const deleteProductImage = async (productId, imageId) => {
+  await axios.delete(`${API_URL}/products/${productId}/images/${imageId}`, getAuthHeaders());
+};
+
+// Avatar upload
+export const uploadAvatar = async (file) => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  const response = await axios.post(`${API_URL}/auth/avatar`, formData, {
+    headers: { ...getAuthHeaders().headers, 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
