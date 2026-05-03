@@ -565,15 +565,15 @@ app.post('/api/orders', authenticateToken, async (req, res) => {
     );
     const orderId = orderRes.rows[0].id;
 
-    // Notify seller via in-app notification
+    // Fetch buyer details
+    const buyerRes = await query('SELECT email, name, phone FROM users WHERE id = $1', [req.user.id]);
+    const buyer = buyerRes.rows[0];
+
+    // Notify seller via in-app notification with buyer contact info
     await query(
       'INSERT INTO notifications (user_id, message, type) VALUES ($1, $2, $3)',
-      [product.seller_id, `Жаңа тапсырыс: ${product.title}`, 'order']
+      [product.seller_id, `Жаңа тапсырыс: ${product.title}. Сатып алушы: ${buyer.name} (Тел: ${buyer.phone})`, 'order']
     );
-
-    // Send email receipt to buyer if they have email
-    const buyerRes = await query('SELECT email, name FROM users WHERE id = $1', [req.user.id]);
-    const buyer = buyerRes.rows[0];
     if (buyer.email) {
       const orderDate = new Date().toLocaleDateString('ru-RU', { timeZone: 'Asia/Almaty', year: 'numeric', month: 'long', day: 'numeric' });
       sendEmail(
